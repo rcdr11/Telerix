@@ -5,7 +5,7 @@
 > Gegenüber dem Original wurden Sicherheitslücken geschlossen, Asterisk von chan_sip auf PJSIP umgestellt
 > und ein Docker-Betrieb ergänzt (Einzelheiten unter [Was wurde geändert?](#was-wurde-geändert)).
 > Fehler, die nur in dieser Version auftreten, bitte nicht im Original-Repository melden.
-> Version dieser Fassung: **0.03-mod**.
+> Version dieser Fassung: **0.04-mod**.
 
 Ein Telefonstreaming-System auf Basis von Asterisk.
 
@@ -245,9 +245,9 @@ entspricht Root-Rechten auf dem Rechner. Jede Lücke im Webinterface würde dann
 ### Neue Version veröffentlichen
 
 1. Änderungen committen, z. B. neue Paketversionen im `Dockerfile` nach einem Sicherheitsupdate.
-2. `TELERIX_VERSION` in `telerix/lib/bootstrap.php` erhöhen (z. B. `0.04-mod`).
+2. `TELERIX_VERSION` in `telerix/lib/bootstrap.php` erhöhen (z. B. `0.05-mod`).
 3. Bauen und `tests/smoke-test.sh` laufen lassen (auf einer Testinstallation, der Test überschreibt die Konfiguration).
-4. Tag setzen und pushen: `git tag v0.04-mod && git push origin --tags`. Tags beginnen immer mit `v`.
+4. Tag setzen und pushen: `git tag v0.05-mod && git push origin --tags`. Tags beginnen immer mit `v`.
 5. Auf GitHub aus dem Tag ein Release erstellen. Der Text erscheint im Webinterface als Änderungsliste.
 
 ### Aktualisieren
@@ -279,7 +279,7 @@ Das Skript:
   Dann die Versionsnummern im `Dockerfile` auf den neuen Stand setzen, bauen und `tests/smoke-test.sh`
   ausführen. Aktuelle Versionen zeigt z. B.
   `docker run --rm alpine:3.24.2 sh -c "apk update -q && apk policy asterisk php84"`.
-- Wer ein bestimmtes, getestetes Image aufbewahren will: `docker save telerix:local | gzip > telerix-0.03-mod.tar.gz`.
+- Wer ein bestimmtes, getestetes Image aufbewahren will: `docker save telerix:local | gzip > telerix-0.04-mod.tar.gz`.
 
 Warum diese Versionen? Asterisk 22 ist die aktuelle LTS-Linie (Sicherheitsupdates bis voraussichtlich 2029)
 und ist in Alpine 3.24 enthalten; chan_sip gibt es dort nicht mehr. nginx und PHP-FPM sind getrennt

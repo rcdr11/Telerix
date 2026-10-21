@@ -7,7 +7,7 @@
  */
 declare(strict_types=1);
 
-const TELERIX_VERSION = '0.03-mod';
+const TELERIX_VERSION = '0.04-mod';
 
 /* Persistente Daten liegen außerhalb des Webroots (Docker-Volume). */
 define('TELERIX_DATA', rtrim(getenv('TELERIX_DATA') ?: '/var/lib/telerix', '/'));
