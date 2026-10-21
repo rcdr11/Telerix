@@ -1,6 +1,6 @@
 <?php
-   require('checklogin.php');
-   include('./layout/navbar.php');
+   require(__DIR__ . '/../lib/checklogin.php');
+   include(__DIR__ . '/../lib/layout/navbar.php');
 ?>
 <div class="w3-container w3-padding-32" style="background-color: #d4e1ff">
   <div class="w3-content w3-white" style="max-width:980px">
@@ -42,5 +42,5 @@ Permission is granted to anyone to use this software for any purpose, including 
 </div> 
 
 <?php
-   include('./layout/footer.php');
+   include(__DIR__ . '/../lib/layout/footer.php');
 ?>

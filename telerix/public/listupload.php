@@ -1,6 +1,6 @@
 <?php
-   require('checklogin.php');
-   include('./layout/navbar.php');
+   require(__DIR__ . '/../lib/checklogin.php');
+   include(__DIR__ . '/../lib/layout/navbar.php');
 ?>
 <div class="w3-container w3-padding-32" style="background-color: #d4e1ff">
   <div class="w3-content" style="max-width:980px">
@@ -15,7 +15,7 @@ if ( $_FILES['uploaddatei']['name']  <> "*.*" )
          $_FILES['uploaddatei']['tmp_name'] ,
          'uploads/'. $_FILES['uploaddatei']['name'] );
 
-    $ret = system("./createlist.sh");
+    $ret = system("../lib/sh/createlist.sh");
     /*echo "<p>Hochladen war erfolgreich: ";
     $ret = system("/var/www/html/createlist.sh");
     echo "<a href=settings.php><button>OK</button></a>";*/
@@ -45,5 +45,5 @@ if ( $_FILES['uploaddatei']['name']  <> "*.*" )
 </div>
 
 <?php
-   include('./layout/footer.php');
+   include(__DIR__ . '/../lib/layout/footer.php');
 ?>

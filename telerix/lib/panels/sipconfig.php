@@ -62,20 +62,37 @@ input[type=submit]:hover {
   }
 }
 </style>
+
 <?php
-   require('checklogin.php');
+   require(__DIR__ . '/../checklogin.php');
 ?>
 <div class="container">
-  <form action="set_stream.php" method="POST">
+  <form action="set_sipconfig.php" method="POST">
   <div class="row">
     <div class="col-25">
-      <label for="fname" style="color: black">Stream-URL</label>
+      <label for="fname" style="color: black">SIP-ID</label>
     </div>
     <div class="col-75">
-    <input type="text" id="streamadress" name="inetstream" placeholder="z.B. www.beispiel.de:8000/stream" value="<?php system("./get_stream.sh"); ?>">
+    <input type="text" id="fname" name="sip_id" placeholder="Deine SIP-ID vom Anbieter" value="<?php system("../lib/sh/get_sip_id.sh"); ?>">
     </div>
   </div>
- <br />
+  <div class="row">
+    <div class="col-25">
+      <label for="lname" style="color: black">Passwort</label>
+    </div>
+    <div class="col-75">
+      <input type="password" id="lname" name="sip_pw" placeholder="Das Passwort zu deiner SIP-ID" value="<?php system("../lib/sh/get_sip_pw.sh"); ?>">
+    </div>
+  </div>
+  <div class="row">
+   <div class="col-25">
+      <label for="lname" style="color: black">Registrar</label>
+    </div>
+    <div class="col-75">
+      <input type="text" id="registrar" name="sip_reg" placeholder="z.B. sipgate.de" value="<?php system("../lib/sh/get_sip_reg.sh"); ?>">
+    </div>
+  </div>
+  <br />
   <div class="row">
     <input type="submit" value="Speichern und Anwenden">
   </div>

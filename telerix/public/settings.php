@@ -1,6 +1,6 @@
 <?php
-   require('checklogin.php');
-   include('./layout/navbar.php');
+   require(__DIR__ . '/../lib/checklogin.php');
+   include(__DIR__ . '/../lib/layout/navbar.php');
 ?>
 <div class="w3-container w3-padding-32" style="background-color: #d4e1ff">
   <div class="w3-content" style="max-width:980px">
@@ -9,7 +9,7 @@
  <div class="w3-panel w3-card-4 w3-blue">
   <h3 style="color: #ffffff">Eingetragene Nummern</h3>
   <?php
-     system("./showlist.sh");
+     system("../lib/sh/showlist.sh");
   ?>
   <br />
   <br/>
@@ -30,5 +30,5 @@
 </div>
 
 <?php
-   include('layout/footer.php');
+   include(__DIR__ . '/../lib/layout/footer.php');
 ?>

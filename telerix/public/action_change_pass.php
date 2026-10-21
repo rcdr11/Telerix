@@ -1,6 +1,6 @@
 <?php
-   require('checklogin.php');
-   include('userdata.php');
+   require(__DIR__ . '/../lib/checklogin.php');
+   include(__DIR__ . '/../lib/userdata.php');
 
    $oldpass = $_POST['telerix_old_pw'];
 

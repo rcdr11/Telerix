@@ -1,5 +1,5 @@
 <?php
-   include('userdata.php');
+   include(__DIR__ . '/../lib/userdata.php');
    $username=$_POST['tuser'];
    $password=$_POST['tpass'];
    //echo password_hash($password,PASSWORD_DEFAULT); Funktion um ein Passwort zu erstellen

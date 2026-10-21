@@ -3,7 +3,7 @@
    if($_SESSION['status'] != "logged in")
    {
       session_destroy();
-      include('index.php');
+      include(__DIR__ . '/../public/index.php');
       exit();
    }
 
@@ -21,7 +21,7 @@
    {
       unset($_SESSION['status']);
       session_destroy();
-      include('index.php');
+      include(__DIR__ . '/../public/index.php');
       exit();
    }
 

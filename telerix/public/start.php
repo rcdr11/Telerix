@@ -1,6 +1,6 @@
 <?php
-   require('checklogin.php');
-   include('./layout/navbar.php');
+   require(__DIR__ . '/../lib/checklogin.php');
+   include(__DIR__ . '/../lib/layout/navbar.php');
 ?>
 <div class="w3-container w3-padding-32" style="background-color: #d4e1ff">
   <div class="w3-content" style="max-width:980px">
@@ -28,7 +28,7 @@
   <!-- Streamliste begin -->
   <ul class="w3-ul w3-center">
   <?php
-    $out=system("./show_internetstreams.sh");
+    $out=system("../lib/sh/show_internetstreams.sh");
   ?>
   </ul>
   <br />
@@ -43,14 +43,14 @@
   <div class="w3-panel w3-light-gray" >
   <ul class="w3-ul w3-center">
   <?php
-     $out=system("./show_caller_numbers.sh");
+     $out=system("../lib/sh/show_caller_numbers.sh");
   ?>
    </ul>
    </div>  
    <!-- Zuhoererliste end -->
 
    <div class="w3-panel w3-light-blue" style="border-radius: 5px">
-   <p>Zuh&oumlrer: <?php system("./show_how_much_callers.sh"); ?></p>
+   <p>Zuh&oumlrer: <?php system("../lib/sh/show_how_much_callers.sh"); ?></p>
    </div>  
 </div> 
 
@@ -59,5 +59,5 @@
   </div>
 </div> 
 <?php
-   include('./layout/footer.php');
+   include(__DIR__ . '/../lib/layout/footer.php');
 ?>

@@ -35,7 +35,7 @@ function togglemenu() {
 </head>
 
 <?php
-   require('checklogin.php');
+   require(__DIR__ . '/../checklogin.php');
 ?>
 <body bgcolor="#d4e1ff">
 <!-- Navbar -->

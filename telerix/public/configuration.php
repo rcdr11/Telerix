@@ -1,6 +1,6 @@
 <?php
-   require('checklogin.php');
-   include('./layout/navbar.php');
+   require(__DIR__ . '/../lib/checklogin.php');
+   include(__DIR__ . '/../lib/layout/navbar.php');
 ?>
 
 <div class="w3-container w3-padding-32" style="background-color: #d4e1ff">
@@ -12,7 +12,7 @@
   <h3 style="color: #ffffff">Internetstream:</h3>
 
   <?php
-  include("streamconfigpanel.php");
+  include(__DIR__ . '/../lib/panels/streamconfig.php');
   ?>
 
   <br />
@@ -24,7 +24,7 @@
  <div class="w3-panel w3-card-4 w3-blue">
   <h3 style="color: #ffffff">SIP-Konfiguration:</h3>
   <?php
-  include("sipconfigurationpanel.php");
+  include(__DIR__ . '/../lib/panels/sipconfig.php');
   ?>
 
   <br />
@@ -36,7 +36,7 @@
   <div class="w3-panel w3-card-4 w3-blue">
   <h3 style="color: #ffffff">Zugangsdaten &auml;ndern:</h3>
   <?php
-  include("changepass.php");
+  include(__DIR__ . '/../lib/panels/changepass.php');
   ?>
 
   <br />
@@ -52,5 +52,5 @@
 </div>
 
 <?php
-   include('./layout/footer.php');
+   include(__DIR__ . '/../lib/layout/footer.php');
 ?>

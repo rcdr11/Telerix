@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <?php
-   require('checklogin.php');
+   require(__DIR__ . '/../lib/checklogin.php');
 ?>
 <html>
 <body>
