@@ -22,12 +22,14 @@ function run_command(array $argv, int $timeout = 15): array
 {
    $proc = proc_open(
       $argv,
-      [0 => ['file', '/dev/null', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+      [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
       $pipes
    );
    if (!is_resource($proc)) {
       return [-1, '', 'Prozess konnte nicht gestartet werden'];
    }
+   /* Keine Eingabe (/dev/null wäre durch open_basedir gesperrt) */
+   fclose($pipes[0]);
    stream_set_blocking($pipes[1], false);
    stream_set_blocking($pipes[2], false);
    $out = $err = '';
@@ -79,12 +81,6 @@ function asterisk_reload_pjsip(): bool
    return asterisk_cli('module reload res_pjsip.so') !== null
       && asterisk_cli('module reload res_pjsip_outbound_registration.so') !== null
       && asterisk_cli('module reload res_pjsip_endpoint_identifier_ip.so') !== null;
-}
-
-/* Wartemusik-Klassen neu laden, startet den Stream-Prozess neu. */
-function asterisk_reload_moh(): bool
-{
-   return asterisk_cli('moh reload') !== null;
 }
 
 function asterisk_hangup_all(): bool
