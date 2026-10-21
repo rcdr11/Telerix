@@ -30,6 +30,10 @@ services:
       # GitHub-Repository für die Update-Prüfung ("besitzer/repository"),
       # leer = Prüfung abgeschaltet
       TELERIX_UPDATE_REPO: ${TELERIX_UPDATE_REPO:-}
+      # Öffentliche IPv4-Adresse oder Hostname des Servers für SIP/RTP hinter NAT.
+      # Nötig, wenn beim Anrufer kein Ton ankommt (dann auch SIP/RTP-Ports oben
+      # freigeben). Leer = keine externe Adresse.
+      # TELERIX_EXTERNAL_ADDRESS: "203.0.113.10"
       # Hinter einem Reverse-Proxy: dessen Adresse bzw. Netz, dem X-Forwarded-For
       # geglaubt wird (Komma- oder Leerzeichen-getrennt, IPv4/IPv6/CIDR).
       # Ohne Eintrag zählt die Login-Drosselung alle Besucher als einen Client

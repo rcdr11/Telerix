@@ -48,7 +48,7 @@ function valid_hostname(string $v): bool
       return false;
    }
    $labels = explode('.', $v);
-   if (count($labels) < 2 || ctype_digit(end($labels))) {
+   if (count($labels) < 2 || preg_match('/^[0-9]+$/', end($labels)) === 1) {
       return false;
    }
    foreach ($labels as $l) {

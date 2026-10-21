@@ -105,6 +105,7 @@ Eingehende Anrufe des Anbieters landen wie im Original auf Extension 200 im Kont
 | `TELERIX_TESTPHONE_PASSWORD` | Legt ein Testtelefon `testphone` an (mind. 12 Zeichen aus `A-Z a-z 0-9 . _ + -`). Es landet im Kontext `from-internal`, Extension 100 spielt Piepton und Stream. Ohne Variable gibt es kein internes Telefon. |
 | `TELERIX_COOKIE_SECURE` | Auf `1` setzen, wenn das Webinterface hinter einem HTTPS-Reverse-Proxy läuft (Session-Cookie mit `Secure`) |
 | `TELERIX_UPDATE_REPO` | GitHub-Repository für die Update-Prüfung, z. B. `meinname/Telerix`. Wird aus der Umgebung bzw. einer `.env`-Datei neben `docker-compose.yml` gelesen. Leer = Prüfung aus. |
+| `TELERIX_EXTERNAL_ADDRESS` | Öffentliche IPv4-Adresse oder Hostname für SIP/RTP hinter NAT (siehe [Netzwerk, SIP und NAT](#netzwerk-sip-und-nat)). Leer = keine. |
 | `TELERIX_TRUSTED_PROXIES` | Adressen/Netze von Reverse-Proxys, deren `X-Forwarded-For` ausgewertet wird (siehe [Betrieb hinter einem Reverse-Proxy](#betrieb-hinter-einem-reverse-proxy)). Leer = Header wird ignoriert. |
 
 ### Netzwerk, SIP und NAT
@@ -113,8 +114,14 @@ Eingehende Anrufe des Anbieters landen wie im Original auf Extension 200 im Kont
 - Für die Registrierung beim Anbieter müssen in der Regel **keine** Ports freigegeben werden: Asterisk baut die
   Verbindung von innen auf, eingehende Anrufe kommen über diese Verbindung zurück (`rtp_symmetric`,
   `force_rport`, `rewrite_contact`, `qualify_frequency=60` halten die NAT-Zuordnung offen).
-- Kommt beim Anrufer kein Ton an, in `asterisk/pjsip.conf` `external_media_address` und
-  `external_signaling_address` auf die öffentliche Adresse setzen und SIP/RTP freigeben.
+- Kommt beim Anrufer kein Ton an (typisch auf einem Server hinter NAT), `TELERIX_EXTERNAL_ADDRESS` auf die
+  öffentliche IPv4-Adresse oder einen Hostnamen setzen und die SIP/RTP-Ports in `docker-compose.yml` freigeben.
+  Der Entrypoint schreibt daraus `external_media_address` und `external_signaling_address` in
+  `pjsip_external.conf`, die `pjsip.conf` im Abschnitt `[transport-udp]` einbindet. `pjsip.conf` selbst muss dafür
+  nicht verändert oder überschrieben werden, spätere Updates kommen also weiter an. Prüfen mit
+  `docker compose exec telerix asterisk -rx "pjsip show transport transport-udp"`. Ein Hostname wird von
+  Asterisk beim Start bzw. Neuladen aufgelöst; ist er nicht auflösbar, meldet Asterisk einen Fehler im Log
+  (`docker compose logs`). Bei wechselnder IP Asterisk danach neu starten.
 - Für ein Testtelefon im lokalen Netz die auskommentierten Zeilen für `5060/udp` und `10000-10099/udp` in
   `docker-compose.yml` aktivieren. Diese Ports nie ungeschützt ins Internet freigeben.
 - Eingehende Anrufe werden nur angenommen, wenn sie vom Registrar kommen (`identify`) oder zur Registrierung

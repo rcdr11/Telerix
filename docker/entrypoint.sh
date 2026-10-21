@@ -76,6 +76,22 @@ fi
 chown telerix:asterisk "$tp"
 chmod 0640 "$tp"
 
+# Öffentliche Adresse für SIP/RTP (wird in [transport-udp] eingebunden)
+ext="$D/asterisk/pjsip_external.conf"
+if [ -n "${TELERIX_EXTERNAL_ADDRESS:-}" ]; then
+   addr="$(php84 /opt/telerix/bin/check-address.php external "$TELERIX_EXTERNAL_ADDRESS")" || exit 1
+   cat > "$ext" <<EOF
+; Automatisch erzeugt aus TELERIX_EXTERNAL_ADDRESS
+external_media_address=$addr
+external_signaling_address=$addr
+EOF
+   echo "telerix: Öffentliche Adresse für SIP/RTP: $addr"
+else
+   echo "; Keine öffentliche Adresse (TELERIX_EXTERNAL_ADDRESS nicht gesetzt)" > "$ext"
+fi
+chown telerix:asterisk "$ext"
+chmod 0640 "$ext"
+
 # Reverse-Proxy: X-Forwarded-For nur von den eingetragenen Adressen auswerten
 # (nginx realip). Leer = Header wird ignoriert, REMOTE_ADDR bleibt der
 # direkte Absender.
