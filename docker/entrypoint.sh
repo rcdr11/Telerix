@@ -118,6 +118,19 @@ if [ -n "$proxies" ]; then
    echo "telerix: X-Forwarded-For wird ausgewertet von: $(echo $proxies)"
 fi
 
+# Webinterface zusätzlich über IPv6, falls im Container verfügbar. Ein
+# Reverse-Proxy in einem Docker-Netz mit IPv6 versucht den Dienstnamen
+# sonst zuerst über IPv6 und bekommt "Connection refused". Geprüft wird mit
+# einem echten Socket, weil "nginx -t" keine Ports belegt.
+listen6=/etc/nginx/telerix-listen-ipv6.conf
+echo "# Automatisch erzeugt: IPv6 im Container verfügbar?" > "$listen6"
+if php84 -r 'exit(@stream_socket_server("tcp://[::]:0") ? 0 : 1);' 2>/dev/null; then
+   echo "listen [::]:8080 default_server;" >> "$listen6"
+else
+   echo "telerix: IPv6 im Container nicht verfügbar, Webinterface nur über IPv4"
+fi
+chmod 0644 "$listen6"
+
 # Admin-Zugangsdaten beim ersten Start anlegen
 php84 /opt/telerix/bin/init-admin.php
 chown -R telerix:telerix "$D/config"
