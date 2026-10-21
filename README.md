@@ -89,6 +89,8 @@ docker compose down                 # stoppen (Daten bleiben im Volume)
 | Konfiguration → Zugangsdaten ändern | Benutzername und Passwort für das Webinterface |
 | Ansage | Eigene Begrüßungsansage hochladen (wav, mp3, ogg, flac bis 20 MB). Sie wird in 8 kHz Mono umgewandelt. Ohne eigene Ansage wird `ansagen/willkommen-gottesdienst.gsm` gespielt. |
 | Nummerverwaltung | Liste „Name Nummer“ (txt/csv, max. 1 MB) hochladen, damit statt der Nummer der Name des Anrufers angezeigt wird |
+| Sicherung | Konfiguration verschlüsselt herunterladen und wieder einspielen (siehe [Sicherung](#sicherung)) |
+| Updates | Prüfen, ob es eine neue Version gibt (siehe [Updates](#updates)) |
 
 Eingehende Anrufe des Anbieters landen wie im Original auf Extension 200 im Kontext `sip-in`.
 
@@ -102,6 +104,7 @@ Eingehende Anrufe des Anbieters landen wie im Original auf Extension 200 im Kont
 | `TELERIX_ADMIN_RESET` | Auf `1` setzen, um die Zugangsdaten beim nächsten Start aus der Passwortdatei neu anzulegen („Passwort vergessen“). Danach wieder entfernen. |
 | `TELERIX_TESTPHONE_PASSWORD` | Legt ein Testtelefon `testphone` an (mind. 12 Zeichen aus `A-Z a-z 0-9 . _ + -`). Es landet im Kontext `from-internal`, Extension 100 spielt Piepton und Stream. Ohne Variable gibt es kein internes Telefon. |
 | `TELERIX_COOKIE_SECURE` | Auf `1` setzen, wenn das Webinterface hinter einem HTTPS-Reverse-Proxy läuft (Session-Cookie mit `Secure`) |
+| `TELERIX_UPDATE_REPO` | GitHub-Repository für die Update-Prüfung, z. B. `meinname/Telerix`. Wird aus der Umgebung bzw. einer `.env`-Datei neben `docker-compose.yml` gelesen. Leer = Prüfung aus. |
 
 ### Netzwerk, SIP und NAT
 
@@ -116,7 +119,7 @@ Eingehende Anrufe des Anbieters landen wie im Original auf Extension 200 im Kont
 - Eingehende Anrufe werden nur angenommen, wenn sie vom Registrar kommen (`identify`) oder zur Registrierung
   gehören (`line=yes`). Schickt der Anbieter Anrufe von weiteren IP-Adressen, greift `line=yes`.
 
-### Daten und Sicherung
+### Daten
 
 Alle veränderlichen Daten liegen im Volume `telerix-data` (`/var/lib/telerix` im Container):
 
@@ -128,12 +131,71 @@ Alle veränderlichen Daten liegen im Volume `telerix-data` (`/var/lib/telerix` i
 | `asterisk/` | von PHP erzeugt, von Asterisk gelesen: `pjsip_trunk.conf`, `pjsip_testphone.conf`, `stream.url` | `2750 telerix:asterisk`, Dateien `0640` |
 | `sounds/` | umgewandelte Ansage `ansage.wav` | `2750 telerix:asterisk`, Dateien `0640` |
 
-Sicherung, z. B.:
+## Sicherung
+
+**Im Webinterface (Seite „Sicherung“):** Admin-Zugang, SIP-Zugang, Stream-Adresse, Nummernliste und die eigene
+Ansage werden als eine Datei `telerix-backup-….tlxbak` heruntergeladen. Die Datei ist mit einem selbst gewählten
+Backup-Passwort (mindestens 10 Zeichen) verschlüsselt (libsodium: Argon2id, XChaCha20-Poly1305). **Ohne dieses
+Passwort lässt sich die Sicherung nicht wieder einspielen**, also gut aufbewahren.
+
+Beim Einspielen wird die aktuelle Konfiguration vollständig ersetzt, auch der Admin-Zugang. Danach gelten
+Benutzername und Passwort aus der Sicherung. Die Werte werden dabei geprüft wie eine Eingabe im Webinterface,
+manipulierte oder fremde Dateien werden abgewiesen.
+
+Nicht enthalten: das Original der hochgeladenen Ansage (nur die umgewandelte Fassung), Login-Sperren und das
+Testtelefon (kommt aus `TELERIX_TESTPHONE_PASSWORD`).
+
+**Komplettes Datenvolume (auf dem Rechner):** Das macht `update.sh` vor jedem Update automatisch nach
+`backups/`. Von Hand geht es so:
 
 ```sh
 docker run --rm -v telerix_telerix-data:/data -v "$PWD":/backup alpine:3.24.2 \
   tar czf /backup/telerix-backup.tgz -C /data .
 ```
+
+Diese Archive sind **nicht verschlüsselt** und enthalten das SIP-Passwort im Klartext.
+
+## Updates
+
+Das Webinterface **prüft** nur, ob es eine neue Version gibt. **Aktualisiert** wird mit `update.sh` auf dem
+Rechner. Der Grund: Damit sich der Container selbst ersetzen könnte, bräuchte er Zugriff auf Docker, und das
+entspricht Root-Rechten auf dem Rechner. Jede Lücke im Webinterface würde dann wieder zum Vollzugriff führen.
+
+### Einrichten (einmalig)
+
+1. Ein eigenes GitHub-Repository für diese Fassung anlegen (z. B. einen Fork von `beni1993/Telerix`).
+   Es muss öffentlich sein, damit das Webinterface die Releases ohne Zugangsdaten abfragen kann.
+2. Das lokale Repository damit verbinden: `git remote set-url origin https://github.com/meinname/Telerix.git`
+   (oder als weiteres Remote; dann `TELERIX_UPDATE_REMOTE=meinremote ./update.sh`).
+3. Neben `docker-compose.yml` eine Datei `.env` mit `TELERIX_UPDATE_REPO=meinname/Telerix` anlegen und
+   `docker compose up -d` ausführen.
+
+### Neue Version veröffentlichen
+
+1. Änderungen committen, z. B. neue Paketversionen im `Dockerfile` nach einem Sicherheitsupdate.
+2. `TELERIX_VERSION` in `telerix/lib/bootstrap.php` erhöhen (z. B. `0.04-mod`).
+3. Bauen und `tests/smoke-test.sh` laufen lassen (auf einer Testinstallation, der Test überschreibt die Konfiguration).
+4. Tag setzen und pushen: `git tag v0.04-mod && git push origin --tags`. Tags beginnen immer mit `v`.
+5. Auf GitHub aus dem Tag ein Release erstellen. Der Text erscheint im Webinterface als Änderungsliste.
+
+### Aktualisieren
+
+Wenn die Seite „Updates“ eine neue Version meldet, im Telerix-Ordner (unter Windows in Git Bash):
+
+```sh
+./update.sh        # zeigt die Änderungen und fragt nach
+./update.sh -y     # ohne Rückfrage
+```
+
+Das Skript:
+
+1. bricht ab, wenn es lokale, nicht eingecheckte Änderungen gibt,
+2. sichert das Datenvolume nach `backups/`,
+3. übernimmt das neueste Tag `v…` per Fast-Forward,
+4. baut das Image neu. Schlägt der Build fehl, wird der Code zurückgesetzt und der laufende Container bleibt
+   unverändert.
+5. startet den Container neu (laufende Anrufe werden getrennt) und wartet auf den Healthcheck. Wird er nicht
+   „healthy“, nennt das Skript die Befehle zum Zurückgehen auf die alte Version.
 
 ## Nachvollziehbar und gleich neu bauen
 
@@ -145,7 +207,7 @@ docker run --rm -v telerix_telerix-data:/data -v "$PWD":/backup alpine:3.24.2 \
   Dann die Versionsnummern im `Dockerfile` auf den neuen Stand setzen, bauen und `tests/smoke-test.sh`
   ausführen. Aktuelle Versionen zeigt z. B.
   `docker run --rm alpine:3.24.2 sh -c "apk update -q && apk policy asterisk php84"`.
-- Wer ein bestimmtes, getestetes Image aufbewahren will: `docker save telerix:0.03-mod | gzip > telerix-0.03-mod.tar.gz`.
+- Wer ein bestimmtes, getestetes Image aufbewahren will: `docker save telerix:local | gzip > telerix-0.03-mod.tar.gz`.
 
 Warum diese Versionen? Asterisk 22 ist die aktuelle LTS-Linie (Sicherheitsupdates bis voraussichtlich 2029)
 und ist in Alpine 3.24 enthalten; chan_sip gibt es dort nicht mehr. nginx und PHP-FPM sind getrennt
@@ -198,6 +260,8 @@ der Container läuft mit `cap_drop: ALL` (plus den zum Start nötigen Fähigkeit
 - Die Ubuntu-Skripte `Install.sh`, `Update.sh` und `Remove_Telerix.sh` sind durch das Docker-Setup ersetzt.
 - Neue Seite „Ansage“ für eine eigene Begrüßungsansage. Sie ersetzt den ungenutzten Bild-Upload `upload.php`.
 - Rückmeldungen (Erfolg/Fehler) nach jedem Speichern
+- Neue Seiten „Sicherung“ (verschlüsseltes Backup und Wiederherstellung) und „Updates“ (Prüfung auf neue
+  Releases) sowie `update.sh` für das Update auf dem Rechner.
 - Zeilenenden sind per `.gitattributes` auf LF festgelegt (wichtig beim Auschecken unter Windows).
 
 ## Bekannte Einschränkungen

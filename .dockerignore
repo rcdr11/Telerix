@@ -9,3 +9,4 @@ CONTRIBUTING.md
 backups
 update.sh
 tests
+.env
