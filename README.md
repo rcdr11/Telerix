@@ -105,6 +105,7 @@ Eingehende Anrufe des Anbieters landen wie im Original auf Extension 200 im Kont
 | `TELERIX_TESTPHONE_PASSWORD` | Legt ein Testtelefon `testphone` an (mind. 12 Zeichen aus `A-Z a-z 0-9 . _ + -`). Es landet im Kontext `from-internal`, Extension 100 spielt Piepton und Stream. Ohne Variable gibt es kein internes Telefon. |
 | `TELERIX_COOKIE_SECURE` | Auf `1` setzen, wenn das Webinterface hinter einem HTTPS-Reverse-Proxy läuft (Session-Cookie mit `Secure`) |
 | `TELERIX_UPDATE_REPO` | GitHub-Repository für die Update-Prüfung, z. B. `meinname/Telerix`. Wird aus der Umgebung bzw. einer `.env`-Datei neben `docker-compose.yml` gelesen. Leer = Prüfung aus. |
+| `TELERIX_TRUSTED_PROXIES` | Adressen/Netze von Reverse-Proxys, deren `X-Forwarded-For` ausgewertet wird (siehe [Betrieb hinter einem Reverse-Proxy](#betrieb-hinter-einem-reverse-proxy)). Leer = Header wird ignoriert. |
 
 ### Netzwerk, SIP und NAT
 
@@ -118,6 +119,70 @@ Eingehende Anrufe des Anbieters landen wie im Original auf Extension 200 im Kont
   `docker-compose.yml` aktivieren. Diese Ports nie ungeschützt ins Internet freigeben.
 - Eingehende Anrufe werden nur angenommen, wenn sie vom Registrar kommen (`identify`) oder zur Registrierung
   gehören (`line=yes`). Schickt der Anbieter Anrufe von weiteren IP-Adressen, greift `line=yes`.
+
+### Betrieb hinter einem Reverse-Proxy
+
+Läuft Telerix hinter einem eigenen nginx (z. B. für HTTPS und Basic-Auth), sieht das Webinterface ohne weitere
+Einstellung als Absender immer den Proxy. Die Login-Drosselung zählt dann alle Besucher als **einen** Client:
+5 Fehlversuche irgendeines Besuchers sperren alle für 15 Minuten.
+
+Abhilfe: In `TELERIX_TRUSTED_PROXIES` die Adresse des Proxys eintragen. Nur von diesen Adressen wertet der
+nginx im Container (Modul `realip`) den Header `X-Forwarded-For` aus. Er nimmt dabei von rechts die erste Adresse,
+die nicht als Proxy eingetragen ist. Die Drosselung, das Zugriffsprotokoll und PHP sehen danach die echte
+Client-IP. Ungültige Einträge brechen den Containerstart mit einer Fehlermeldung ab, `…/0` wird abgelehnt.
+
+Beispiel mit dem Proxy als eigenem Dienst im selben `docker-compose.yml`:
+
+```yaml
+services:
+  proxy:
+    image: nginx:1.30-alpine      # oder dein eigener Proxy
+    ports:
+      - "443:443"
+    # ... Zertifikate, Basic-Auth, Konfiguration
+  telerix:
+    environment:
+      TELERIX_TRUSTED_PROXIES: "172.16.0.0/12"   # Docker-Netze; besser enger, siehe unten
+      TELERIX_COOKIE_SECURE: "1"                 # Proxy spricht HTTPS mit dem Browser
+```
+
+Im Proxy:
+
+```nginx
+location / {
+    proxy_pass http://telerix:8080;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+```
+
+**Wichtig – nur den Proxy eintragen, keine Client-Netze.** Alles, was in `TELERIX_TRUSTED_PROXIES` steht, darf
+Telerix eine beliebige Client-IP „vorsagen“. `172.16.0.0/12` deckt alle üblichen Docker-Netze ab und ist bequem,
+solange die Besucher von außen kommen und dort mit ihrer echten Adresse ankommen. Erreichen die Besucher den
+Proxy aber über eine Adresse aus diesem Bereich (z. B. über den Docker-Gateway bei rootless Docker,
+Docker Desktop oder IPv6-zu-IPv4-Weiterleitung), könnten sie per gefälschtem `X-Forwarded-For` die Drosselung
+umgehen. Sicherer ist eine feste Adresse für den Proxy:
+
+```yaml
+services:
+  proxy:
+    networks:
+      default:
+        ipv4_address: 172.30.0.10
+  telerix:
+    environment:
+      TELERIX_TRUSTED_PROXIES: "172.30.0.10"
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
+```
+
+Den Port `127.0.0.1:8080` von Telerix braucht der Proxy nicht. Er spricht Telerix direkt im Compose-Netz an.
+Ob alles stimmt, zeigt `docker compose logs telerix`: Die Zugriffszeilen müssen mit der Client-IP beginnen, nicht
+mit der des Proxys. Den automatischen Test dazu startet `tests/proxy-test.sh`.
 
 ### Daten
 
@@ -226,6 +291,11 @@ Sicherheitsheader, Login (CSRF, Session-Erneuerung, Cookie-Flags, Drosselung), S
 inklusive Laden in Asterisk, Upload-Whitelist, Ansage-Umwandlung, Asterisk-Neustart und die Dateirechte.
 **Achtung:** Er überschreibt Stream-Adresse, SIP-Daten, Ansage und Nummernliste mit Testwerten.
 
+`tests/proxy-test.sh` prüft den Betrieb hinter einem Reverse-Proxy. Dazu setzt er einen Test-Proxy und mehrere
+Clients mit eigenen IPs ins Compose-Netz und startet Telerix mehrmals neu. Geprüft wird: echte Client-IP und
+Drosselung pro Client mit `TELERIX_TRUSTED_PROXIES`, gefälschte `X-Forwarded-For`-Header werden ignoriert,
+ungültige Werte brechen den Start ab.
+
 ## Was wurde geändert?
 
 ### Sicherheit
@@ -266,8 +336,9 @@ der Container läuft mit `cap_drop: ALL` (plus den zum Start nötigen Fähigkeit
 
 ## Bekannte Einschränkungen
 
-- Die Login-Drosselung zählt je Client-IP. Über die Docker-Portweiterleitung sehen alle Zugriffe gleich aus,
-  die Sperre wirkt dann für alle Clients gemeinsam.
+- Die Login-Drosselung zählt je Client-IP. Über die Docker-Portweiterleitung (z. B. Docker Desktop) oder einen
+  Reverse-Proxy ohne `TELERIX_TRUSTED_PROXIES` sehen alle Zugriffe gleich aus, die Sperre wirkt dann für alle
+  Clients gemeinsam.
 - Asterisk meldet beim Start `There are no local system nameservers configured, resorting to system resolution`.
   Das liegt am Docker-internen DNS (127.0.0.11) und ist unkritisch, die Namensauflösung funktioniert.
 - Unterstützt werden nur MP3-Streams (wie im Original).

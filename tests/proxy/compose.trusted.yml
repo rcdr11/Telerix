@@ -1,0 +1,6 @@
+# Nur für tests/proxy-test.sh: setzt TELERIX_TRUSTED_PROXIES auf die
+# Adresse des Test-Proxys.
+services:
+  telerix:
+    environment:
+      TELERIX_TRUSTED_PROXIES: ${TEST_TRUSTED_PROXIES:?}

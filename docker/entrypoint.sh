@@ -76,6 +76,26 @@ fi
 chown telerix:asterisk "$tp"
 chmod 0640 "$tp"
 
+# Reverse-Proxy: X-Forwarded-For nur von den eingetragenen Adressen auswerten
+# (nginx realip). Leer = Header wird ignoriert, REMOTE_ADDR bleibt der
+# direkte Absender.
+realip=/etc/nginx/telerix-realip.conf
+proxies="$(php84 /opt/telerix/bin/check-address.php proxies "${TELERIX_TRUSTED_PROXIES:-}")" || exit 1
+{
+   echo "# Automatisch erzeugt aus TELERIX_TRUSTED_PROXIES"
+   if [ -n "$proxies" ]; then
+      for p in $proxies; do
+         echo "set_real_ip_from $p;"
+      done
+      echo "real_ip_header X-Forwarded-For;"
+      echo "real_ip_recursive on;"
+   fi
+} > "$realip"
+chmod 0644 "$realip"
+if [ -n "$proxies" ]; then
+   echo "telerix: X-Forwarded-For wird ausgewertet von: $(echo $proxies)"
+fi
+
 # Admin-Zugangsdaten beim ersten Start anlegen
 php84 /opt/telerix/bin/init-admin.php
 chown -R telerix:telerix "$D/config"

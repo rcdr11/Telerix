@@ -30,6 +30,11 @@ services:
       # GitHub-Repository für die Update-Prüfung ("besitzer/repository"),
       # leer = Prüfung abgeschaltet
       TELERIX_UPDATE_REPO: ${TELERIX_UPDATE_REPO:-}
+      # Hinter einem Reverse-Proxy: dessen Adresse bzw. Netz, dem X-Forwarded-For
+      # geglaubt wird (Komma- oder Leerzeichen-getrennt, IPv4/IPv6/CIDR).
+      # Ohne Eintrag zählt die Login-Drosselung alle Besucher als einen Client
+      # (die Proxy-IP). Nur Proxy-Adressen eintragen, keine Client-Netze!
+      # TELERIX_TRUSTED_PROXIES: "172.16.0.0/12"
       # Auf 1 setzen, wenn das Webinterface hinter einem HTTPS-Proxy läuft
       TELERIX_COOKIE_SECURE: "0"
     secrets:
