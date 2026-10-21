@@ -16,15 +16,6 @@
   <a href="asterisk_restart.php" onclick="if(!confirm('Asterisk neu starten? Alle bestehenden Verbindungen werden damit unterbrochen.')) return false;"
      <button class="w3-button w3-dark-gray w3-round w3-padding" style="margin-bottom: 5px">Asterisk neu starten</button>
   </a>
-   <a href="asterisk_service_restart.php" onclick="if(!confirm('Asterisk Service neu starten? Alle bestehenden Verbindungen werden damit unterbrochen.')) return false;"
-     <button class="w3-button w3-dark-gray w3-round" style="margin-bottom: 5px">Asterisk Service neu starten</button>
-  </a>
-  <a href="reboot.php"onclick="if(!confirm('Server neustarten?')) return false;"
-     <button class="w3-button w3-dark-gray w3-round" style="margin-bottom: 5px">Anlage neu starten</button>
-  </a>
-  <a href="shutdown.php" onclick="if(!confirm('Server herunterfahren?')) return false;"
-     <button class="w3-button w3-dark-gray w3-round" style="margin-bottom: 5px">Anlage herunterfahren</button>
-  </a>
   </div>
   <br />
   <br/>
