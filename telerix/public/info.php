@@ -4,7 +4,7 @@
    $os = @parse_ini_file('/etc/os-release');
    include(__DIR__ . '/../lib/layout/navbar.php');
 ?>
-<div class="w3-container w3-padding-32" style="background-color: #d4e1ff">
+<div class="w3-container w3-padding-32" class="page-bg">
   <div class="w3-content w3-white" style="max-width:980px">
 
  <!-- Optionen Panel Begin-->
@@ -13,15 +13,25 @@
 
   <div class="w3-panel w3-light-gray" style="border-radius:5px" >
   <ul class="w3-ul">
-  <li>Telerix-Version: 0.02</li>
+  <li>Telerix-Version: <?= h(TELERIX_VERSION) ?> &ndash; <b>ver&auml;nderte Version</b> auf Basis von Telerix 0.02</li>
   <li>Asterisk-Version: <?= h(asterisk_version()) ?></li>
-  <li>Datum: 15 April 2020</li>
-  <li>Webinterface-Lizenz: zLib</li>
+  <li>Original: 15. April 2020, Benjamin Hedert (github.com/beni1993/Telerix)</li>
+  <li>Lizenz: zlib</li>
   <li>Betriebssystem: <?= h($os['PRETTY_NAME'] ?? 'unbekannt') ?></li>
   <li>Dankesch&oumln f&uumlr die Unterst&uumltzung an Edgar W, Martin G, Eduard D, Alex J, Daniel L und Viktor B</li>
   </ul>
   </div>  
- 
+
+  <div class="w3-panel w3-pale-yellow" style="border-radius:5px; color:#333">
+  <p><b>Ver&auml;nderte Version (Hinweis gem&auml;&szlig; zlib-Lizenz, Punkt 2):</b>
+  Dies ist nicht die Originalsoftware. Gegen&uuml;ber Telerix 0.02 wurden u. a. die
+  Rechteausweitung per sudo entfernt, Login, Uploads und Shell-Aufrufe abgesichert,
+  Asterisk von chan_sip auf PJSIP umgestellt und ein Docker-Betrieb erg&auml;nzt.
+  Einzelheiten stehen in der README. Fehler dieser Version bitte nicht dem
+  urspr&uuml;nglichen Autor melden.</p>
+  </div>
+
+Urspr&uuml;nglicher Lizenzhinweis (unver&auml;ndert):<br />
 Copyright (c) 2020 Benjamin Hedert
 <br/>
 This software is provided 'as-is', without any express or implied warranty. In no event will the authors be held liable for any damages arising from the use of this software. <br />
@@ -32,8 +42,9 @@ Permission is granted to anyone to use this software for any purpose, including 
 
   <div class="w3-panel w3-light-blue" style="border-radius:5px" >
   <ul class="w3-ul">
-  <li>Hinweis! Diese Version ist nur f&uumlr den Betrieb im lokalen Netzwerk gedacht.</li>
-  <div/>
+  <li>Hinweis! Das Webinterface ist f&uuml;r den Betrieb im lokalen Netz bzw. nur auf 127.0.0.1 gedacht. F&uuml;r den Zugriff aus dem Internet geh&ouml;rt ein HTTPS-Proxy davor.</li>
+  </ul>
+  </div>
 
 
  </div>

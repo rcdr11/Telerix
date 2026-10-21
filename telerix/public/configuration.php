@@ -3,7 +3,7 @@
    include(__DIR__ . '/../lib/layout/navbar.php');
 ?>
 
-<div class="w3-container w3-padding-32" style="background-color: #d4e1ff">
+<div class="w3-container w3-padding-32" class="page-bg">
 
   <div class="w3-content" style="max-width:980px"><!-- Wrapper start -->
 

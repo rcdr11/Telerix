@@ -3,7 +3,7 @@
    include(__DIR__ . '/../lib/layout/navbar.php');
 ?>
 
-<div class="w3-container w3-padding-32" style="background-color: #d4e1ff">
+<div class="w3-container w3-padding-32" class="page-bg">
   <div class="w3-content w3-white" style="max-width:980px">
 
  <!-- Optionen Panel Begin-->
@@ -19,8 +19,10 @@
 <div id="Frage1" class="w3-hide w3-container w3-light-blue">
   <p>Wenn du C, PHP oder Bashskripte programmieren kannst, oder dich mit Asterisk, HTML, CSS oder Regex auskennst,
      kannst du dich gern im &ouml;ffentlichen Repository an der Entwicklung beteiligen. <br />Die Repositories f&uuml;r 
-     Telerix findest du unter folgendem GitHub-Account: <a href="https://github.com/beni1993" target="_blank">github.com/beni1993</a> </p>
+     Telerix findest du unter folgendem GitHub-Account: <a href="https://github.com/beni1993" target="_blank" rel="noopener noreferrer">github.com/beni1993</a> </p>
   <p>Wenn du mich kennst, kannst du gerne auch Verbesserungsvorschl&auml;ge und Kritik weitergeben.</p>
+  <p><b>Hinweis:</b> Diese Installation ist eine ver&auml;nderte Version von Telerix (siehe Info).
+     Fehler, die nur in dieser Version auftreten, bitte nicht im Original-Repository melden.</p>
 </div>
 <!-- End -->
 <br />
@@ -30,9 +32,9 @@
 <h6>Auf welchen Plattformen l&auml;uft TELERIX?</h6></button>
 
 <div id="Track2" class="w3-hide w3-container w3-light-blue">
-  <p>&bull; Ubuntu 18.04.4 LTS</p>
-  <p>&bull; Ubuntu Server 18.04.4 LTS</p>
-  <p>und vermutlich auf den meisten Debianbasierenden Systemen</p>
+  <p>Diese ver&auml;nderte Version l&auml;uft als Docker-Container (Alpine Linux 3.24, Asterisk 22,
+     nginx, PHP 8.4) &ndash; z. B. mit Docker Desktop unter Windows oder macOS oder mit Docker unter Linux.</p>
+  <p>Das urspr&uuml;ngliche Telerix 0.02 war f&uuml;r Ubuntu 18.04 geschrieben.</p>
 </div>
 <!-- End -->
 <br />
@@ -42,34 +44,26 @@
 <h6>Wie kann ich TELERIX installieren?</h6></button>
 
 <div id="Track3" class="w3-hide w3-container w3-light-blue">
-  <p>Software zum herunterladen und entpacken  mit folgendem Befehl im Terminal installieren:<br />
-  <i><b>sudo apt install unzip wget</b></i></p>
-  <p>Das Repository mit folgendem Befehl herunterladen:<br />
-  <i><b>sudo wget https://github.com/beni1993/Telerix/archive/master.zip</b></i></p>
-  <p>Die heruntergeladene Zip-Datei entpacken<br />
-  <i><b>sudo unzip master.zip</b></i></p>
-  <p>Die Ausführung der Skripts in dem entpackten Ordner erlauben<br />
-  <i><b>sudo chmod 777 -R ./Telerix-master</b></i></p>
-  <p>Installation starten<br />
-  <i><b>sudo ./Telerix-master/Install.sh</b></i></p>
-  <p>Alle weitere Schritte zur Konfiguration beschreibt die Installation.</p>
+  <p>Admin-Passwort (mindestens 10 Zeichen) in die Datei <i><b>secrets/admin_password.txt</b></i> schreiben.</p>
+  <p>Image bauen und starten:<br />
+  <i><b>docker compose up -d --build</b></i></p>
+  <p>Danach ist das Webinterface unter <i><b>http://127.0.0.1:8080</b></i> erreichbar.
+     Weitere Schritte beschreibt die README.</p>
 </div>
 <!-- End -->
 <br />
 
 <!-- Frage 04 -->
 <button type="button" data-toggle="Frage4" class="w3-button w3-block w3-left-align w3-light-blue">
-<h6>Was tun wenn das Webinterface Zeichen aus der Konfiguration entfernt?</h6></button>
+<h6>Warum wird meine Stream-Adresse oder SIP-Eingabe abgelehnt?</h6></button>
 
 <div id="Frage4" class="w3-hide w3-container w3-light-blue">
-  <p>Wenn aus der Streamadresse oder den SIP-Daten Zeichen verschwinden,
-     liegt das an einem Sicherheitsmechanismus von Telerix.<br />
-     Benutztereingaben werden n&auml;mlich von allen Sonderzeichen bereinigt.<br />
-     Hintergrund ist, das es unm&ouml;glich gemacht werden soll, durch Eingabe
-     von speziellen Zeichen, die Eingabe zu beenden und eigene Kommandos auf
-     dem Server auszuf&uuml;hren.</p>
-     <p>In diesem Fall kontaktieren Sie bitte die Entwickler und teilen sie das Zeichen mit,
-        da hier ein legales Zeichen vermutlich weggefiltert wurde.</p>
+  <p>Eingaben werden gepr&uuml;ft und bei unerlaubten Zeichen mit einer Meldung abgelehnt
+     (fr&uuml;her wurden Sonderzeichen still entfernt).</p>
+  <p>Stream-Adresse: nur http:// oder https://, ohne Leerzeichen und Anf&uuml;hrungszeichen.<br />
+     SIP-ID: A-Z, a-z, 0-9 sowie . _ + -<br />
+     Passwort: druckbare Zeichen ohne Leerzeichen und Backslash<br />
+     Registrar: Hostname oder IPv4-Adresse, optional mit :Port</p>
 </div>
 <!-- End -->
 
