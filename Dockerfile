@@ -56,6 +56,7 @@ COPY --chmod=0644 docker/php-fpm.conf /etc/php84/php-fpm.conf
 COPY --chmod=0644 docker/php-fpm-telerix.conf /etc/php84/php-fpm.d/telerix.conf
 COPY --chmod=0644 docker/supervisord.conf /etc/supervisord.conf
 COPY --chmod=0755 docker/entrypoint.sh /usr/local/bin/telerix-entrypoint
+COPY --chmod=0755 docker/asterisk-run.sh /usr/local/bin/telerix-asterisk
 
 ENV TELERIX_COOKIE_SECURE=0 \
     TELERIX_UPDATE_REPO=""

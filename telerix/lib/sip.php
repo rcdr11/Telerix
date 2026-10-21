@@ -110,14 +110,20 @@ force_rport=yes
 rewrite_contact=yes
 dtmf_mode=rfc4733
 
+; Eingehende Anrufe werden über die Absender-IP dem Anbieter zugeordnet.
+; Bei einem Hostnamen zählen dessen A- und SRV-Einträge (z. B. alle
+; SIP-Server von sipgate.de).
 [telerix-trunk]
 type=identify
 endpoint=telerix-trunk
 match={$host}
+srv_lookups=yes
 
 ; Eingehende Anrufe landen wie früher (register=.../200) auf Extension 200.
-; line/endpoint ordnen Anrufe auch dann dem Anbieter zu, wenn sie von einer
-; anderen IP-Adresse als dem Registrar kommen.
+; Bewusst ohne line=yes: Das hängt einen zufälligen line-Parameter an den
+; Contact. Nach jedem Neustart wäre der Contact dann ein anderer, und der
+; Anbieter verzweigte Anrufe bis zum Ablauf der alten Registrierung doppelt.
+; Ohne line ist der Contact immer gleich und ersetzt die alte Bindung.
 [telerix-trunk-reg]
 type=registration
 transport=transport-udp
@@ -125,8 +131,6 @@ outbound_auth=telerix-trunk-auth
 server_uri=sip:{$registrar}
 client_uri=sip:{$user}@{$registrar}
 contact_user=200
-line=yes
-endpoint=telerix-trunk
 retry_interval=60
 forbidden_retry_interval=600
 expiration=600

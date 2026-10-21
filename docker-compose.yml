@@ -17,6 +17,8 @@ services:
     # Fester lokaler Name; die Version steht im Webinterface (Info/Updates)
     image: telerix:local
     restart: unless-stopped
+    # Zeit zum Abmelden beim SIP-Anbieter vor dem Beenden (siehe docker/asterisk-run.sh)
+    stop_grace_period: 30s
     ports:
       # Webinterface nur lokal erreichbar
       - "127.0.0.1:8080:8080"

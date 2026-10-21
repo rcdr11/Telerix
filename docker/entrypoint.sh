@@ -76,6 +76,12 @@ fi
 chown telerix:asterisk "$tp"
 chmod 0640 "$tp"
 
+# SIP-Registrierung aus den gespeicherten Daten neu erzeugen, damit
+# Änderungen an der Vorlage nach einem Update wirksam werden
+php84 /opt/telerix/bin/render-sip.php
+chown telerix:asterisk "$D/asterisk/pjsip_trunk.conf"
+chmod 0640 "$D/asterisk/pjsip_trunk.conf"
+
 # Öffentliche Adresse für SIP/RTP (wird in [transport-udp] eingebunden)
 ext="$D/asterisk/pjsip_external.conf"
 if [ -n "${TELERIX_EXTERNAL_ADDRESS:-}" ]; then
