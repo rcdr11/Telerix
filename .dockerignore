@@ -1,0 +1,8 @@
+.git
+.gitattributes
+.gitignore
+.dockerignore
+secrets
+docker-compose.yml
+README.md
+CONTRIBUTING.md

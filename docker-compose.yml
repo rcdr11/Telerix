@@ -1,0 +1,55 @@
+# Telerix (veränderte Version) – lokaler Betrieb
+#
+# Vor dem ersten Start das Admin-Passwort anlegen (mind. 10 Zeichen):
+#   mkdir secrets
+#   echo "ein-langes-passwort" > secrets/admin_password.txt
+# Dann:  docker compose up -d --build
+# Webinterface: http://127.0.0.1:8080
+
+name: telerix
+
+services:
+  telerix:
+    build: .
+    image: telerix:0.03-mod
+    restart: unless-stopped
+    ports:
+      # Webinterface nur lokal erreichbar
+      - "127.0.0.1:8080:8080"
+      # SIP und RTP werden für die Registrierung beim Anbieter in der Regel
+      # nicht benötigt (ausgehende Verbindung). Für ein Testtelefon im
+      # lokalen Netz bei Bedarf freigeben (siehe README):
+      # - "5060:5060/udp"
+      # - "10000-10099:10000-10099/udp"
+    environment:
+      TELERIX_ADMIN_USER: admin
+      TELERIX_ADMIN_PASSWORD_FILE: /run/secrets/telerix_admin_password
+      # Optional: Testtelefon "testphone" (mind. 12 Zeichen)
+      # TELERIX_TESTPHONE_PASSWORD: ""
+      # Auf 1 setzen, wenn das Webinterface hinter einem HTTPS-Proxy läuft
+      TELERIX_COOKIE_SECURE: "0"
+    secrets:
+      - telerix_admin_password
+    volumes:
+      - telerix-data:/var/lib/telerix
+    # Nur die Rechte, die zum Starten und Abgeben der Rechte nötig sind
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      # setgid-Bit auf den von Asterisk gelesenen Datenverzeichnissen setzen
+      - FSETID
+      - SETUID
+      - SETGID
+      - KILL
+    security_opt:
+      - no-new-privileges:true
+
+secrets:
+  telerix_admin_password:
+    file: ./secrets/admin_password.txt
+
+volumes:
+  telerix-data:
