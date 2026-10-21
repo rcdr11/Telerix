@@ -37,7 +37,10 @@ new_password=""
 if [ ! -s "$PW_FILE" ]; then
    umask 077
    mkdir -p secrets
-   new_password="$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 20)"
+   # Feste Menge Zufallsdaten lesen; "tr </dev/urandom | head" würde tr per
+   # SIGPIPE beenden und mit pipefail das Skript abbrechen.
+   new_password="$(head -c 2000 /dev/urandom | LC_ALL=C tr -dc 'A-Za-z0-9' | cut -c 1-20)"
+   [ "${#new_password}" -eq 20 ] || die "Konnte kein Passwort erzeugen."
    printf '%s\n' "$new_password" > "$PW_FILE"
 fi
 
