@@ -26,6 +26,7 @@ $loggedIn = is_logged_in();
     <a class="w3-bar-item w3-button w3-hide-medium w3-hide-large w3-right w3-padding-large w3-hover-white w3-large w3-red" href="#" data-toggle="navsmall" title="Navigation ein-/ausblenden">&#9776;</a>
     <a href="start.php" class="w3-bar-item w3-button w3-padding-large w3-light-blue">TELERIX</a>
     <a href="settings.php" class="w3-bar-item w3-button w3-hide-small w3-padding-large w3-hover-white">Nummerverwaltung</a>
+    <a href="ansage.php" class="w3-bar-item w3-button w3-hide-small w3-padding-large w3-hover-white">Ansage</a>
     <a href="configuration.php" class="w3-bar-item w3-button w3-hide-small w3-padding-large w3-hover-white">Konfiguration</a>
     <a href="help.php" class="w3-bar-item w3-button w3-hide-small w3-padding-large w3-hover-white">Hilfe</a>
     <a href="info.php" class="w3-bar-item w3-button w3-hide-small w3-padding-large w3-hover-white">Info</a>
@@ -42,6 +43,7 @@ $loggedIn = is_logged_in();
   <!-- Navbar on small screens -->
   <div id="navsmall" class="w3-bar-block w3-hide w3-white w3-hide-large w3-hide-medium w3-large">
     <a href="settings.php" class="w3-bar-item w3-button w3-padding-large">Nummerverwaltung</a>
+    <a href="ansage.php" class="w3-bar-item w3-button w3-padding-large">Ansage</a>
     <a href="configuration.php" class="w3-bar-item w3-button w3-padding-large">Konfiguration</a>
     <a href="help.php" class="w3-bar-item w3-button w3-padding-large">Hilfe</a>
     <a href="info.php" class="w3-bar-item w3-button w3-padding-large">Info</a>

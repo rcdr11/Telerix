@@ -75,6 +75,43 @@ function caller_display(string $callerId, array $entries): string
    return $callerId;
 }
 
+const NUMBERS_MAX_BYTES = 1024 * 1024;
+
+const NUMBERS_ALLOWED = [
+   'txt' => ['text/plain', 'text/csv', 'application/csv'],
+   'csv' => ['text/plain', 'text/csv', 'application/csv'],
+];
+
+/*
+ * Hochgeladene Liste prüfen, Zeilen bereinigen und als neue Datei mit
+ * zufälligem Namen ablegen. Liefert die Anzahl übernommener Einträge.
+ */
+function numbers_upload(string $field): int
+{
+   require_once __DIR__ . '/upload.php';
+   $u = upload_check($field, NUMBERS_ALLOWED, NUMBERS_MAX_BYTES);
+
+   $text = file_get_contents($u['tmp']);
+   if (!mb_check_encoding($text, 'UTF-8')) {
+      /* Unter Windows erstellte Listen sind oft Windows-1252 */
+      $text = mb_convert_encoding($text, 'UTF-8', 'Windows-1252');
+   }
+   $text = preg_replace('/^\xEF\xBB\xBF/', '', $text);
+
+   $lines = [];
+   foreach (preg_split('/\R/', $text) as $line) {
+      $e = number_parse_line($line);
+      if ($e !== null) {
+         $lines[] = $e['number'] . "\t" . str_replace("\t", ' ', $e['name']);
+      }
+   }
+   if (!$lines) {
+      throw new UploadError('In der Datei wurden keine Telefonnummern gefunden.');
+   }
+   atomic_write(numbers_dir() . '/' . bin2hex(random_bytes(16)) . '.txt', implode("\n", $lines) . "\n", 0600);
+   return count($lines);
+}
+
 function numbers_delete_all(): void
 {
    foreach (glob(numbers_dir() . '/*.txt') ?: [] as $f) {
