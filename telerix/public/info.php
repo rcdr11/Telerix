@@ -1,5 +1,7 @@
 <?php
    require(__DIR__ . '/../lib/checklogin.php');
+   require_once __DIR__ . '/../lib/asterisk.php';
+   $os = @parse_ini_file('/etc/os-release');
    include(__DIR__ . '/../lib/layout/navbar.php');
 ?>
 <div class="w3-container w3-padding-32" style="background-color: #d4e1ff">
@@ -12,10 +14,10 @@
   <div class="w3-panel w3-light-gray" style="border-radius:5px" >
   <ul class="w3-ul">
   <li>Telerix-Version: 0.02</li>
-  <li>Asterisk-Version: <?php system("asterisk -V | egrep '^[^~]+' -o"); ?></li>
+  <li>Asterisk-Version: <?= h(asterisk_version()) ?></li>
   <li>Datum: 15 April 2020</li>
   <li>Webinterface-Lizenz: zLib</li>
-  <li>Betriebssystem: <?php system("lsb_release -d | sed 's/Description..//g'"); ?></li>
+  <li>Betriebssystem: <?= h($os['PRETTY_NAME'] ?? 'unbekannt') ?></li>
   <li>Dankesch&oumln f&uumlr die Unterst&uumltzung an Edgar W, Martin G, Eduard D, Alex J, Daniel L und Viktor B</li>
   </ul>
   </div>  
