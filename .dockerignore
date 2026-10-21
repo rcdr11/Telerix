@@ -10,3 +10,7 @@ backups
 update.sh
 tests
 .env
+docker-compose.override.yml
+.env.example
+install.sh
+docs

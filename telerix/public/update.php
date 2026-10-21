@@ -23,9 +23,9 @@
   <div class="w3-panel w3-light-gray" style="border-radius:5px">
    <p>Installierte Version: <b><?= h(TELERIX_VERSION) ?></b></p>
 <?php if ($s['repo'] === ''): ?>
-   <p>Die Update-Pr&uuml;fung ist nicht eingerichtet. Dazu in <i>docker-compose.yml</i> die Variable
-      <b>TELERIX_UPDATE_REPO</b> auf das GitHub-Repository setzen (z. B. <i>meinname/Telerix</i>)
-      und den Container neu starten.</p>
+   <p>Die Update-Pr&uuml;fung ist nicht eingerichtet. Dazu in der Datei <i>.env</i> im Telerix-Ordner die Zeile
+      <b>TELERIX_UPDATE_REPO=besitzer/repository</b> eintragen (z. B. <i>rcdr11/Telerix</i>)
+      und <i>docker compose up -d</i> ausf&uuml;hren.</p>
 <?php else: ?>
    <p>Repository: <a href="https://github.com/<?= h($s['repo']) ?>/releases" target="_blank" rel="noopener noreferrer"><?= h($s['repo']) ?></a></p>
 <?php if ($s['latest'] !== null): ?>

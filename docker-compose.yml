@@ -1,10 +1,13 @@
-# Telerix (veränderte Version) – lokaler Betrieb
+# Telerix (veränderte Version)
 #
-# Vor dem ersten Start das Admin-Passwort anlegen (mind. 10 Zeichen):
-#   mkdir secrets
-#   echo "ein-langes-passwort" > secrets/admin_password.txt
-# Dann:  docker compose up -d --build
-# Webinterface: http://127.0.0.1:8080
+# Einrichten und starten:  ./install.sh
+# Webinterface:            http://127.0.0.1:8080
+#
+# Diese Datei bitte nicht ändern, sonst bricht update.sh wegen lokaler
+# Änderungen ab. Eigene Einstellungen gehören in die Datei .env (siehe
+# .env.example), zusätzliche Ports oder Dienste in eine
+# docker-compose.override.yml (siehe docs/konfiguration.md). Beide werden
+# nicht eingecheckt.
 
 name: telerix
 
@@ -17,30 +20,15 @@ services:
     ports:
       # Webinterface nur lokal erreichbar
       - "127.0.0.1:8080:8080"
-      # SIP und RTP werden für die Registrierung beim Anbieter in der Regel
-      # nicht benötigt (ausgehende Verbindung). Für ein Testtelefon im
-      # lokalen Netz bei Bedarf freigeben (siehe README):
-      # - "5060:5060/udp"
-      # - "10000-10099:10000-10099/udp"
     environment:
       TELERIX_ADMIN_USER: admin
       TELERIX_ADMIN_PASSWORD_FILE: /run/secrets/telerix_admin_password
-      # Optional: Testtelefon "testphone" (mind. 12 Zeichen)
-      # TELERIX_TESTPHONE_PASSWORD: ""
-      # GitHub-Repository für die Update-Prüfung ("besitzer/repository"),
-      # leer = Prüfung abgeschaltet
+      # Alle folgenden Werte kommen aus .env; leer = Funktion aus
       TELERIX_UPDATE_REPO: ${TELERIX_UPDATE_REPO:-}
-      # Öffentliche IPv4-Adresse oder Hostname des Servers für SIP/RTP hinter NAT.
-      # Nötig, wenn beim Anrufer kein Ton ankommt (dann auch SIP/RTP-Ports oben
-      # freigeben). Leer = keine externe Adresse.
-      # TELERIX_EXTERNAL_ADDRESS: "203.0.113.10"
-      # Hinter einem Reverse-Proxy: dessen Adresse bzw. Netz, dem X-Forwarded-For
-      # geglaubt wird (Komma- oder Leerzeichen-getrennt, IPv4/IPv6/CIDR).
-      # Ohne Eintrag zählt die Login-Drosselung alle Besucher als einen Client
-      # (die Proxy-IP). Nur Proxy-Adressen eintragen, keine Client-Netze!
-      # TELERIX_TRUSTED_PROXIES: "172.16.0.0/12"
-      # Auf 1 setzen, wenn das Webinterface hinter einem HTTPS-Proxy läuft
-      TELERIX_COOKIE_SECURE: "0"
+      TELERIX_EXTERNAL_ADDRESS: ${TELERIX_EXTERNAL_ADDRESS:-}
+      TELERIX_TRUSTED_PROXIES: ${TELERIX_TRUSTED_PROXIES:-}
+      TELERIX_COOKIE_SECURE: ${TELERIX_COOKIE_SECURE:-0}
+      TELERIX_TESTPHONE_PASSWORD: ${TELERIX_TESTPHONE_PASSWORD:-}
     secrets:
       - telerix_admin_password
     volumes:

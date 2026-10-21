@@ -44,11 +44,12 @@
 <h6>Wie kann ich TELERIX installieren?</h6></button>
 
 <div id="Track3" class="w3-hide w3-container w3-light-blue">
-  <p>Admin-Passwort (mindestens 10 Zeichen) in die Datei <i><b>secrets/admin_password.txt</b></i> schreiben.</p>
-  <p>Image bauen und starten:<br />
-  <i><b>docker compose up -d --build</b></i></p>
-  <p>Danach ist das Webinterface unter <i><b>http://127.0.0.1:8080</b></i> erreichbar.
-     Weitere Schritte beschreibt die README.</p>
+  <p>Voraussetzungen sind Docker und Git. Dann im Terminal (unter Windows in Git Bash):<br />
+  <i><b>git clone https://github.com/rcdr11/Telerix.git</b></i><br />
+  <i><b>cd Telerix</b></i><br />
+  <i><b>./install.sh</b></i></p>
+  <p>Das Skript zeigt am Ende Adresse, Benutzer und Passwort an.
+     Weitere Hinweise stehen in der README.</p>
 </div>
 <!-- End -->
 <br />
