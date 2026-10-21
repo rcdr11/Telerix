@@ -20,6 +20,8 @@ RUN apk add --no-cache \
       php84-session=${PHP_VERSION} \
       php84-fileinfo=${PHP_VERSION} \
       php84-mbstring=${PHP_VERSION} \
+      php84-openssl=${PHP_VERSION} \
+      php84-sodium=${PHP_VERSION} \
       nginx=1.30.4-r1 \
       supervisor=4.3.0-r1 \
       mpg123=1.33.5-r0 \
@@ -55,7 +57,8 @@ COPY --chmod=0644 docker/php-fpm-telerix.conf /etc/php84/php-fpm.d/telerix.conf
 COPY --chmod=0644 docker/supervisord.conf /etc/supervisord.conf
 COPY --chmod=0755 docker/entrypoint.sh /usr/local/bin/telerix-entrypoint
 
-ENV TELERIX_COOKIE_SECURE=0
+ENV TELERIX_COOKIE_SECURE=0 \
+    TELERIX_UPDATE_REPO=""
 
 VOLUME ["/var/lib/telerix"]
 EXPOSE 8080/tcp 5060/udp 10000-10099/udp

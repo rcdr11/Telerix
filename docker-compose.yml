@@ -26,6 +26,9 @@ services:
       TELERIX_ADMIN_PASSWORD_FILE: /run/secrets/telerix_admin_password
       # Optional: Testtelefon "testphone" (mind. 12 Zeichen)
       # TELERIX_TESTPHONE_PASSWORD: ""
+      # GitHub-Repository für die Update-Prüfung ("besitzer/repository"),
+      # leer = Prüfung abgeschaltet
+      TELERIX_UPDATE_REPO: ${TELERIX_UPDATE_REPO:-}
       # Auf 1 setzen, wenn das Webinterface hinter einem HTTPS-Proxy läuft
       TELERIX_COOKIE_SECURE: "0"
     secrets:
