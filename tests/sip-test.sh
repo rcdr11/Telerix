@@ -65,16 +65,21 @@ set_sip() { local t; t="$(token configuration.php)"; curl -s -o /dev/null -b "$J
 
 # Anrufe, die Telerix seit dem Start bekommen hat ("calls processed")
 tx_calls_processed() { tx_cli "core show channels count" | awk '/calls? processed/ {print $1}'; }
-# Anruf vom Anbieter an Telerix, Aufnahme beim Anbieter; prüft nach 3 s,
+# Anruf vom Anbieter an Telerix, Aufnahme beim Anbieter; prüft in den ersten 6 s,
 # welche Ansage läuft, und zählt, wie viele Anrufe bei Telerix ankommen.
 # Hat der Anbieter eine veraltete Zweitregistrierung, schickt er zwei INVITEs.
 # call <Name> <Sekunden>  -> setzt CALL_APP, CALL_CHANNELS, CALL_STATS
 call() {
    local before; before="$(tx_calls_processed)"
    prov_cli "channel originate Local/anruf@provider application Record /tmp/$1.wav16,0,$2,qx" >/dev/null
-   sleep 3
-   CALL_APP="$(tx_cli "core show channels concise" | grep "^PJSIP/" | head -1 | cut -d'!' -f6,7)"
-   sleep 5
+   # 6 s lang alle 0,5 s nachsehen, welche Anwendung läuft; Playback merken
+   CALL_APP=""
+   for _ in $(seq 1 12); do
+      app="$(tx_cli "core show channels concise" | grep "^PJSIP/" | head -1 | cut -d'!' -f6,7)"
+      case "$app" in Playback*) CALL_APP="$app" ;; *) [ -z "$CALL_APP" ] && CALL_APP="$app" ;; esac
+      sleep 0.5
+   done
+   sleep 2
    CALL_CHANNELS=$(( $(tx_calls_processed) - before ))
    sleep $(($2 - 6))
    docker exec "$PROV" sh -c "sox -t wav /tmp/$1.wav16 -t raw /tmp/$1.raw" 2>/dev/null
@@ -150,7 +155,7 @@ info "Abtastrate $RATE Hz: $SKRIPT"
 echo "== Anruf (Ansage und Wartemusik)"
 START="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 call anruf1 45
-info "nach 3 s: $CALL_APP"
+info "Anwendung: $CALL_APP"
 info "Aufnahme ab Sekunde $ANSAGE_SKIP: $CALL_STATS"
 check "Begrüßungsansage wird gespielt" 'grep -q "Playback!tx/willkommen-gottesdienst" <<<"$CALL_APP"'
 check "Keine Meldung 'does not exist'" '! $DC logs --since "$START" telerix 2>/dev/null | grep -q "does not exist"'
@@ -163,7 +168,7 @@ docker cp "$PROV:/tmp/eigene.wav" "$(winpath "$TMP")/eigene.wav" >/dev/null
 t="$(token ansage.php)"
 curl -s -o /dev/null -b "$JAR" -c "$JAR" -F "csrf=$t" -F "ansage=@$(winpath "$TMP/eigene.wav")" "$BASE/ansage.php"
 call anruf2 10
-info "nach 3 s: $CALL_APP"
+info "Anwendung: $CALL_APP"
 check "Hochgeladene Ansage wird gespielt" 'grep -q "Playback!/var/lib/telerix/sounds/ansage" <<<"$CALL_APP"'
 t="$(token ansage.php)"
 curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d action=delete "$BASE/ansage.php"
