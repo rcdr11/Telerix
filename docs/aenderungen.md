@@ -38,13 +38,16 @@ der Container läuft mit `cap_drop: ALL` (plus den zum Start nötigen Fähigkeit
 - Seite „Ansage“ für eine eigene Begrüßungsansage. Sie ersetzt den ungenutzten Bild-Upload `upload.php`.
 - Seiten „Sicherung“ (verschlüsseltes Backup) und „Updates“ (Prüfung auf neue Releases), dazu `update.sh`
 - Betrieb hinter einem Reverse-Proxy (`TELERIX_TRUSTED_PROXIES`) und hinter NAT (`TELERIX_EXTERNAL_ADDRESS`)
+- Aufbereitung des Streams für das Telefon (16 kHz, Leveler, Begrenzer, Puffer), siehe [Tonqualität](tonqualitaet.md)
+- Saubere Abmeldung beim SIP-Anbieter beim Stoppen des Containers (keine doppelten Anrufe nach einem Neustart)
 - Rückmeldungen (Erfolg/Fehler) nach jedem Speichern
 
 ## Bekannte Einschränkungen
 
 - Unterstützt werden nur MP3-Streams (wie im Original).
-- Eine echte Registrierung bei einem Anbieter und echte Anrufe über das Telefonnetz sind noch nicht getestet.
-  Geprüft sind das fehlerfreie Laden der PJSIP-Konfiguration und ein interner Testanruf bis zur Wartemusik.
+- Automatisch getestet wird gegen einen nachgebildeten SIP-Anbieter (`tests/sip-test.sh`): Registrierung,
+  Abmeldung, eingehende Anrufe, Ansage, Wartemusik und Tonpegel. Echte Anrufe über das Telefonnetz deckt dieser
+  Test nicht ab.
 - Die Login-Sperre zählt je Client-IP. Mit Docker Desktop oder hinter einem Proxy ohne `TELERIX_TRUSTED_PROXIES`
   sehen alle Zugriffe gleich aus, die Sperre trifft dann alle gemeinsam.
 - Asterisk meldet beim Start `There are no local system nameservers configured, resorting to system resolution`.

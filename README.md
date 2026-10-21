@@ -2,7 +2,7 @@
 
 > **Veränderte Version** von [Telerix 0.02 von Benjamin Hedert](https://github.com/beni1993/Telerix).
 > Sicherheitslücken geschlossen, Asterisk auf PJSIP umgestellt, Betrieb in Docker.
-> Fehler dieser Version bitte nicht im Original-Repository melden. Version: **0.04-mod**.
+> Fehler dieser Version bitte nicht im Original-Repository melden. Version: **0.05-mod**.
 
 Telerix macht einen Internetradio-Stream (Icecast, MP3), zum Beispiel einen Gottesdienst, **per Telefon hörbar**.
 Wer die Nummer anruft, hört eine Begrüßungsansage und danach den Stream. Eingestellt wird alles in einem

@@ -45,25 +45,27 @@ Bei laufendem Container, im Telerix-Ordner:
 ```sh
 tests/smoke-test.sh    # Login, CSRF, Uploads, Stream, SIP, Sicherung, Neustart, Dateirechte
 tests/proxy-test.sh    # Betrieb hinter einem Reverse-Proxy (startet Telerix mehrmals neu)
+tests/sip-test.sh      # nachgebildeter SIP-Anbieter: Ansage, Anrufe, Abmeldung, Tonpegel, Aussetzer
 ```
 
-**Achtung:** `smoke-test.sh` überschreibt Stream-Adresse, SIP-Daten, Ansage und Nummernliste mit Testwerten.
+**Achtung:** `smoke-test.sh` und `sip-test.sh` überschreiben Stream-Adresse, SIP-Daten, Ansage und Nummernliste
+mit Testwerten.
 Vorher eine Sicherung herunterladen oder auf einer Testinstallation laufen lassen.
 
 ## Neue Version veröffentlichen
 
 1. Änderungen committen, z. B. neue Paketversionen im `Dockerfile`.
 2. `TELERIX_VERSION` in `telerix/lib/bootstrap.php` und `user_agent` in `asterisk/pjsip.conf` erhöhen
-   (z. B. auf `0.05-mod`), ebenso die Versionsangabe oben in der README.
+   (z. B. auf `0.06-mod`), ebenso die Versionsangabe oben in der README.
 3. Neu bauen (`docker compose up -d --build`) und die Tests laufen lassen.
 4. Pushen und Tag setzen. Tags beginnen immer mit `v`:
 
    ```sh
    git push
-   git tag -a v0.05-mod -m "Telerix 0.05-mod"
-   git push origin v0.05-mod
+   git tag -a v0.06-mod -m "Telerix 0.06-mod"
+   git push origin v0.06-mod
    ```
 
 5. Release erstellen. Der Text erscheint im Webinterface als Änderungsliste:
    - im Browser: Repository → *Releases* → *Draft a new release* → Tag wählen → *Publish release*
-   - oder: `gh release create v0.05-mod --title "Telerix 0.05-mod" --notes "…"`
+   - oder: `gh release create v0.06-mod --title "Telerix 0.06-mod" --notes "…"`

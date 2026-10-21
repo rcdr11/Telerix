@@ -43,7 +43,7 @@ Gemessen mit `tests/sip-test.sh`:
 | Verzögerung bis zum Ton | 0 s | 4,0 s |
 | 60 s mit 6 Stockungen à 2,5 s | – | keine Aussetzer |
 
-Zum Vergleich deine Messung auf dem Server mit v0.04-mod: RMS −34 dBFS, Spitze −16 dBFS. Das entspricht dem
+Zum Vergleich eine Messung auf einem Server mit v0.04-mod: RMS −34 dBFS, Spitze −16 dBFS. Das entspricht dem
 Vorher-Wert mit dem Testsignal.
 
 Offline an der ganzen Testaufnahme (2:48 min) je nach Anhebung:
