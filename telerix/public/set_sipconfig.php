@@ -1,30 +1,32 @@
 <?php
 require(__DIR__ . '/../lib/checklogin.php');
 require_post_csrf();
-$sip_id = $_POST["sip_id"];
-$sip_password = $_POST["sip_pw"];
-$sip_registrar = $_POST["sip_reg"];
+require_once __DIR__ . '/../lib/sip.php';
+require_once __DIR__ . '/../lib/asterisk.php';
 
-/* Testausgabe
-echo "ID: $sip_id";
-echo "PW: $sip_password";
-echo "RE: $sip_registrar";
-*/
+$old = sip_load();
+$sip_id = trim(post_str('sip_id'));
+$sip_password = post_str('sip_pw');
+$sip_registrar = sip_normalize_registrar(post_str('sip_reg'));
 
-/*SIP-ID von allen unerlaubten Zeichen bereinigen*/
-/* Erlaubt: A-Z a-z 0-9 . : / -            */
-$sip_id = preg_replace ( '/[^a-z0-9.:\/\-_]/i', '', $sip_id);
+/* Leeres Passwortfeld = bisheriges Passwort behalten (es wird nicht angezeigt). */
+if ($sip_password === '' && $sip_id !== '') {
+   $sip_password = $old['password'];
+}
 
-/*SIP-Passwort von allen unerlaubten Zeichen bereinigen!*/
-/* Erlaubt: A-Z a-z 0-9 . : / -            */
-$sip_password = preg_replace ( '/[^a-z0-9.:\/\-_]/i', '', $sip_password);
+/* Nur prüfen, nicht still "bereinigen": ungültige Eingaben werden abgelehnt. */
+$error = sip_validate($sip_id, $sip_password, $sip_registrar);
+if ($error !== null) {
+   flash('error', $error);
+   redirect('configuration.php');
+}
 
-/*SIP-Registrar von allen Sonderzeichen bereinigen*/
-/* Erlaubt: A-Z a-z 0-9 . : / -            */
-$sip_registrar = preg_replace ( '/[^a-z0-9.:\/\-_]/i', '', $sip_registrar);
+sip_save($sip_id, $sip_password, $sip_registrar);
 
-system("../lib/sh/set_sipconfig.sh $sip_id $sip_password $sip_registrar");
-system("../lib/sh/asterisk_restart.sh");
+if (asterisk_reload_pjsip()) {
+   flash('ok', $sip_id === '' ? 'SIP-Registrierung entfernt.' : 'SIP-Konfiguration gespeichert und geladen.');
+} else {
+   flash('error', 'SIP-Konfiguration gespeichert, Asterisk konnte aber nicht neu laden.');
+}
 
 redirect('configuration.php');
-?>
