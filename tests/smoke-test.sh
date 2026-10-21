@@ -116,6 +116,35 @@ check "Nummernliste angenommen (3 Einträge)" 'page listupload.php | grep -q "3 
 check "Liste angezeigt, HTML maskiert" 'page settings.php | grep -q "&lt;b&gt;Fett&lt;/b&gt;"'
 check "+49 normalisiert" 'page settings.php | grep -q "060112345"'
 
+echo "== Sicherung"
+t="$(token backup.php)"
+curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d action=create -d backup_pw=kurz -d backup_pw2=kurz "$BASE/backup.php"
+check "Zu kurzes Backup-Passwort abgelehnt" 'page backup.php | grep -q "mindestens 10 Zeichen"'
+check "Sicherung ohne Token abgelehnt (403)" '[ "$(status -d action=create -d backup_pw=TestBackup123 -d backup_pw2=TestBackup123 "$BASE/backup.php")" = 403 ]'
+bk_hdr="$(curl -s -D - -o "$TMP/sicherung.tlxbak" -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d action=create -d backup_pw=TestBackup123 -d backup_pw2=TestBackup123 "$BASE/backup.php")"
+check "Sicherung als Download" 'grep -qi "^content-disposition: attachment; filename=\"telerix-backup-" <<<"$bk_hdr"'
+check "Sicherung verschlüsselt (kein Klartext)" 'head -c 17 "$TMP/sicherung.tlxbak" | grep -q "TELERIX-BACKUP-1" && ! grep -aq "Geheim;123\|4711000e0\|stream.url" "$TMP/sicherung.tlxbak"'
+# Konfiguration ändern, dann Sicherung einspielen
+t="$(token configuration.php)"
+curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" --data-urlencode 'inetstream=http://anders.example/x' "$BASE/set_stream.php"
+t="$(token backup.php)"
+curl -s -o /dev/null -b "$JAR" -c "$JAR" -F "csrf=$t" -F action=restore -F restore_pw=FalschesPasswort -F "backup=@$TMP/sicherung.tlxbak" "$BASE/backup.php"
+check "Falsches Backup-Passwort abgelehnt" 'page backup.php | grep -q "Backup-Passwort falsch"'
+head -c 2000 "$TMP/sicherung.tlxbak" > "$TMP/kaputt.tlxbak"; printf 'X' >> "$TMP/kaputt.tlxbak"
+curl -s -o /dev/null -b "$JAR" -c "$JAR" -F "csrf=$t" -F action=restore -F restore_pw=TestBackup123 -F "backup=@$TMP/kaputt.tlxbak" "$BASE/backup.php"
+check "Manipulierte Sicherung abgelehnt" 'page backup.php | grep -q "Backup-Passwort falsch oder Datei beschädigt"'
+curl -s -o /dev/null -b "$JAR" -c "$JAR" -F "csrf=$t" -F action=restore -F restore_pw=TestBackup123 -F "backup=@$TMP/shell.php" "$BASE/backup.php"
+check "Fremde Datei als Sicherung abgelehnt" 'page backup.php | grep -q "keine Telerix-Sicherungsdatei"'
+curl -s -o /dev/null -b "$JAR" -c "$JAR" -F "csrf=$t" -F action=restore -F restore_pw=TestBackup123 -F "backup=@$TMP/sicherung.tlxbak" "$BASE/backup.php"
+check "Sicherung eingespielt" 'page backup.php | grep -q "Sicherung eingespielt"'
+check "Stream-Adresse wiederhergestellt" '[ "$(in_container "cat /var/lib/telerix/asterisk/stream.url")" = "http://127.0.0.1:8099/test.mp3" ]'
+check "SIP-Zugang wiederhergestellt" 'in_container "asterisk -rx \"pjsip show auth telerix-trunk-auth\"" | grep -q "password *: Geheim;123"'
+check "Ansage und Nummernliste wiederhergestellt" 'page ansage.php | grep -q "eigene Ansage" && page settings.php | grep -q "Max Mustermann"'
+check "Nach dem Einspielen weiter angemeldet" 'page start.php | grep -q "Asterisk: l&auml;uft"'
+
+echo "== Updates"
+check "Update-Seite erreichbar" 'page update.php | grep -q "Installierte Version"'
+
 echo "== Asterisk-Neustart über das Webinterface"
 t="$(token start.php)"
 check "Neustart angestoßen" '[ "$(status --data-urlencode "csrf=$t" "$BASE/asterisk_restart.php")" = 303 ]'

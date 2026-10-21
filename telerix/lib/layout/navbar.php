@@ -29,6 +29,8 @@ $loggedIn = is_logged_in();
     <a href="ansage.php" class="w3-bar-item w3-button w3-hide-small w3-padding-large w3-hover-white">Ansage</a>
     <a href="configuration.php" class="w3-bar-item w3-button w3-hide-small w3-padding-large w3-hover-white">Konfiguration</a>
     <a href="help.php" class="w3-bar-item w3-button w3-hide-small w3-padding-large w3-hover-white">Hilfe</a>
+    <a href="backup.php" class="w3-bar-item w3-button w3-hide-small w3-padding-large w3-hover-white">Sicherung</a>
+    <a href="update.php" class="w3-bar-item w3-button w3-hide-small w3-padding-large w3-hover-white">Updates</a>
     <a href="info.php" class="w3-bar-item w3-button w3-hide-small w3-padding-large w3-hover-white">Info</a>
     <form action="logout.php" method="POST" class="w3-right w3-hide-small">
       <?= csrf_field() ?>
@@ -46,6 +48,8 @@ $loggedIn = is_logged_in();
     <a href="ansage.php" class="w3-bar-item w3-button w3-padding-large">Ansage</a>
     <a href="configuration.php" class="w3-bar-item w3-button w3-padding-large">Konfiguration</a>
     <a href="help.php" class="w3-bar-item w3-button w3-padding-large">Hilfe</a>
+    <a href="backup.php" class="w3-bar-item w3-button w3-padding-large">Sicherung</a>
+    <a href="update.php" class="w3-bar-item w3-button w3-padding-large">Updates</a>
     <a href="info.php" class="w3-bar-item w3-button w3-padding-large">Info</a>
     <form action="logout.php" method="POST">
       <?= csrf_field() ?>
