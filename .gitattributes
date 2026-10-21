@@ -1,0 +1,5 @@
+# Alle Textdateien mit LF auschecken – Shell-Skripte und Konfigurationen
+# laufen im Linux-Container und brechen mit CRLF.
+* text=auto eol=lf
+*.gsm binary
+*.ico binary
