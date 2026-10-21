@@ -1,3 +1,12 @@
+<?php
+/*
+ * Seitenkopf mit Navigation. Ohne Anmeldung (Login-Seite) wird nur das
+ * Logo gezeigt. Schriften und Icons werden nicht mehr von externen CDNs
+ * geladen.
+ */
+require_once __DIR__ . '/../auth.php';
+$loggedIn = is_logged_in();
+?>
 <!DOCTYPE html>
 <html lang="de">
 <head>
@@ -5,79 +14,46 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="w3.css">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lato">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Montserrat">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
-<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-<link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
-<link rel="icon" href="/favicon.ico" type="image/x-icon">
-<style>
-body,h1,h2,h3,h4,h5,h6 {font-family: "Lato", sans-serif}
-.w3-bar,h1,button {font-family: "Montserrat", sans-serif}
-.fa-anchor,.fa-coffee {font-size:30px}
-.mySlides {display:none}
-.w3-left, .w3-right, .w3-badge {cursor:pointer}
-.w3-badge {height:13px;width:13px;padding:0}
-</style>
-
-<script>
-// Used to toggle the menu on small screens when clicking on the menu button
-function togglemenu() {
-  var x = document.getElementById("navsmall");
-  if (x.className.indexOf("w3-show") == -1) {
-    x.className += " w3-show";
-  } else {
-    x.className = x.className.replace(" w3-show", "");
-  }
-}
-</script>
-
+<link rel="stylesheet" href="telerix.css">
+<link rel="icon" href="favicon.ico" type="image/x-icon">
+<script src="telerix.js" defer></script>
 </head>
-
-<?php
-   require(__DIR__ . '/../checklogin.php');
-?>
-<body bgcolor="#d4e1ff">
+<body>
 <!-- Navbar -->
 <div class="w3-top">
   <div class="w3-bar w3-blue w3-card w3-left-align w3-large">
-    <a class="w3-bar-item w3-button w3-hide-medium w3-hide-large w3-right w3-padding-large w3-hover-white w3-large w3-red" href="javascript:void(0);" onclick="togglemenu()" title="Toggle Navigation Menu"><i class="fa fa-bars"></i></a>
+<?php if ($loggedIn): ?>
+    <a class="w3-bar-item w3-button w3-hide-medium w3-hide-large w3-right w3-padding-large w3-hover-white w3-large w3-red" href="#" data-toggle="navsmall" title="Navigation ein-/ausblenden">&#9776;</a>
     <a href="start.php" class="w3-bar-item w3-button w3-padding-large w3-light-blue">TELERIX</a>
     <a href="settings.php" class="w3-bar-item w3-button w3-hide-small w3-padding-large w3-hover-white">Nummerverwaltung</a>
     <a href="configuration.php" class="w3-bar-item w3-button w3-hide-small w3-padding-large w3-hover-white">Konfiguration</a>
     <a href="help.php" class="w3-bar-item w3-button w3-hide-small w3-padding-large w3-hover-white">Hilfe</a>
     <a href="info.php" class="w3-bar-item w3-button w3-hide-small w3-padding-large w3-hover-white">Info</a>
-    <a href="logout.php" class="w3-bar-item w3-button w3-hide-small w3-padding-large w3-hover-red w3-right">Logout</a>
+    <form action="logout.php" method="POST" class="w3-right w3-hide-small">
+      <?= csrf_field() ?>
+      <button type="submit" class="w3-bar-item w3-button w3-padding-large w3-hover-red">Logout</button>
+    </form>
+<?php else: ?>
+    <a href="index.php" class="w3-bar-item w3-button w3-padding-large w3-light-blue">TELERIX</a>
+<?php endif; ?>
   </div>
 
+<?php if ($loggedIn): ?>
   <!-- Navbar on small screens -->
   <div id="navsmall" class="w3-bar-block w3-hide w3-white w3-hide-large w3-hide-medium w3-large">
     <a href="settings.php" class="w3-bar-item w3-button w3-padding-large">Nummerverwaltung</a>
     <a href="configuration.php" class="w3-bar-item w3-button w3-padding-large">Konfiguration</a>
     <a href="help.php" class="w3-bar-item w3-button w3-padding-large">Hilfe</a>
     <a href="info.php" class="w3-bar-item w3-button w3-padding-large">Info</a>
-    <a href="logout.php" class="w3-bar-item w3-button w3-padding-large">Logout</a>
+    <form action="logout.php" method="POST">
+      <?= csrf_field() ?>
+      <button type="submit" class="w3-bar-item w3-button w3-padding-large">Logout</button>
+    </form>
   </div>
-
-
-
-
-</div> 
- <!-- Navbar Background -->
-<div>
-  <div class="w3-bar w3-left-align w3-large">
-    <a class="w3-bar-item w3-button w3-hide-medium w3-hide-large w3-right w3-padding-large w3-hover-white w3-large" href="javascript:void(0);" onclick="myFunction()" title="Toggle Navigation Menu"><i class="fa fa-bars"></i></a>
-    <a href="index.html" class="w3-bar-item w3-button w3-padding-large" style="color:#d4e1ff">TELERIX</a>
-
-    <a href="impressum.html" class="w3-bar-item w3-button w3-hide-small w3-padding-large w3-hover-white" style="color:#d4e1ff">>Nummerverwaltung</a>
-    <a href="impressum.html" class="w3-bar-item w3-button w3-hide-small w3-padding-large w3-hover-white" style="color:#d4e1ff">Konfiguration</a>
-    <a href="impressum.html" class="w3-bar-item w3-button w3-hide-small w3-padding-large w3-hover-white" style="color:#d4e1ff">Hilfe</a>
-    <a href="impressum.html" class="w3-bar-item w3-button w3-hide-small w3-padding-large w3-hover-white" style="color:#d4e1ff">Info</a>
-    <a href="impressum.html" class="w3-bar-item w3-button w3-hide-small w3-padding-large w3-hover-white w3-right" style="color:#d4e1ff">Logout</a>
-  </div>
-
-  <!-- Navbar on small screens -->
-  <div id="navDemo" class="w3-bar-block w3-white w3-hide w3-hide-large w3-hide-medium w3-large">
-    <a href="impressum.html" class="w3-bar-item w3-button w3-padding-large">Impressum</a>
-  </div>
+<?php endif; ?>
 </div>
+<!-- Platzhalter in Höhe der fixierten Navigation -->
+<div class="navbar-spacer"></div>
+<?php foreach (take_flashes() as $f): ?>
+<div class="w3-content flash flash-<?= h($f['type']) ?>" style="max-width:980px"><?= h($f['msg']) ?></div>
+<?php endforeach; ?>

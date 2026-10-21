@@ -10,12 +10,14 @@
   <h3 style="color: #ffffff">Optionen</h3>
   <!-- Buttonbar begin -->
   <div class="w3-bar">
-  <a href="hangup_all.php" onclick="if(!confirm('Alle Anrufer auflegen?')) return false;"
-     <button class="w3-button w3-dark-gray w3-round" style="margin-bottom: 5px">Alle Anrufer auflegen</button>
-  </a>
-  <a href="asterisk_restart.php" onclick="if(!confirm('Asterisk neu starten? Alle bestehenden Verbindungen werden damit unterbrochen.')) return false;"
-     <button class="w3-button w3-dark-gray w3-round w3-padding" style="margin-bottom: 5px">Asterisk neu starten</button>
-  </a>
+  <form action="hangup_all.php" method="POST" class="inline" data-confirm="Alle Anrufer auflegen?">
+     <?= csrf_field() ?>
+     <button type="submit" class="w3-button w3-dark-gray w3-round" style="margin-bottom: 5px">Alle Anrufer auflegen</button>
+  </form>
+  <form action="asterisk_restart.php" method="POST" class="inline" data-confirm="Asterisk neu starten? Alle bestehenden Verbindungen werden damit unterbrochen.">
+     <?= csrf_field() ?>
+     <button type="submit" class="w3-button w3-dark-gray w3-round" style="margin-bottom: 5px">Asterisk neu starten</button>
+  </form>
   </div>
   <br />
   <br/>

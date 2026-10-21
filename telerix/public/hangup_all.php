@@ -1,5 +1,6 @@
 <?php
    require(__DIR__ . '/../lib/checklogin.php');
+   require_post_csrf();
    $a = system("../lib/sh/hangup_all.sh");
-   header('Location: start.php');
+   redirect('start.php');
 ?>

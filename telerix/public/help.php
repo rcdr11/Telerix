@@ -13,7 +13,7 @@
 
 
 <!-- Frage 01 -->
-<button onclick="klappmenu('Frage1')" class="w3-button w3-block w3-left-align w3-light-blue">
+<button type="button" data-toggle="Frage1" class="w3-button w3-block w3-left-align w3-light-blue">
 <h6>Wie kann ich zur Weiterentwicklung von TELERIX beitragen?</h6></button>
 
 <div id="Frage1" class="w3-hide w3-container w3-light-blue">
@@ -26,7 +26,7 @@
 <br />
 
 <!-- Frage 02 -->
-<button onclick="klappmenu('Track2')" class="w3-button w3-block w3-left-align w3-light-blue">
+<button type="button" data-toggle="Track2" class="w3-button w3-block w3-left-align w3-light-blue">
 <h6>Auf welchen Plattformen l&auml;uft TELERIX?</h6></button>
 
 <div id="Track2" class="w3-hide w3-container w3-light-blue">
@@ -38,7 +38,7 @@
 <br />
 
 <!-- Frage 03 -->
-<button onclick="klappmenu('Track3')" class="w3-button w3-block w3-left-align w3-light-blue">
+<button type="button" data-toggle="Track3" class="w3-button w3-block w3-left-align w3-light-blue">
 <h6>Wie kann ich TELERIX installieren?</h6></button>
 
 <div id="Track3" class="w3-hide w3-container w3-light-blue">
@@ -58,10 +58,10 @@
 <br />
 
 <!-- Frage 04 -->
-<button onclick="klappmenu('Frage 04')" class="w3-button w3-block w3-left-align w3-light-blue">
+<button type="button" data-toggle="Frage4" class="w3-button w3-block w3-left-align w3-light-blue">
 <h6>Was tun wenn das Webinterface Zeichen aus der Konfiguration entfernt?</h6></button>
 
-<div id="Frage 04" class="w3-hide w3-container w3-light-blue">
+<div id="Frage4" class="w3-hide w3-container w3-light-blue">
   <p>Wenn aus der Streamadresse oder den SIP-Daten Zeichen verschwinden,
      liegt das an einem Sicherheitsmechanismus von Telerix.<br />
      Benutztereingaben werden n&auml;mlich von allen Sonderzeichen bereinigt.<br />
@@ -76,16 +76,6 @@
 <br /> <!-- Unten Platz schaffen -->
 
 </div>
-<script>
-function klappmenu(id) {
-  var x = document.getElementById(id);
-  if (x.className.indexOf("w3-show") == -1) {
-    x.className += " w3-show";
-  } else {
-    x.className = x.className.replace(" w3-show", "");
-  }
-}
-</script>
 
  </div>
   <!-- Optionen Panel End-->

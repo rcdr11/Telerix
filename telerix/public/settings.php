@@ -17,12 +17,11 @@
   <!-- Optionen Panel End-->
   <br />
 
-  <a href="deletelist.php" onclick="if(!confirm('Die aktuelle Liste unwiederuflich löschen?')) return false;"
-     <button class="w3-button w3-dark-gray w3-round">Aktuelle Liste l&oumlschen</button>
-  </a>
-  <a href="listupload.php"
-     <button class="w3-button w3-dark-gray w3-round">Neue Liste hochladen</button>
-  </a>
+  <form action="deletelist.php" method="POST" class="inline" data-confirm="Die aktuelle Liste unwiderruflich löschen?">
+     <?= csrf_field() ?>
+     <button type="submit" class="w3-button w3-dark-gray w3-round">Aktuelle Liste l&ouml;schen</button>
+  </form>
+  <a href="listupload.php" class="w3-button w3-dark-gray w3-round">Neue Liste hochladen</a>
 
  </div> 
 

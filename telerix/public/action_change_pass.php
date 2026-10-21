@@ -1,28 +1,24 @@
 <?php
    require(__DIR__ . '/../lib/checklogin.php');
-   include(__DIR__ . '/../lib/userdata.php');
+   require_post_csrf();
 
-   $oldpass = $_POST['telerix_old_pw'];
+   $user = post_str('telerix_user');
+   $new = post_str('telerix_new_pw_a');
 
-   if(password_verify($oldpass, $reqpass))
-   {
-      unlink('nopassword.php');
-      /* User ist authentifiziert*/
-      if( $_POST['telerix_new_pw_a'] == $_POST['telerix_new_pw_b'])
-      {
-         /* Passwort eintragen */
-         $datei = fopen("userdata.php","w+");
-         $inputtxt = '<?php';
-         $inputtxt = "$inputtxt" . "\n" . '$requser=\'' . $_POST['telerix_user'] . '\';' . "\n";
-         $inputtxt = "$inputtxt" . '$reqpass=\'' . password_hash($_POST['telerix_new_pw_b'],PASSWORD_DEFAULT) . '\';';
-         $inputtxt = "$inputtxt" . "\n" . '?>';
-         fwrite($datei, $inputtxt);
-         rewind($datei);
-         fclose($datei);
-      }
-
+   if (!admin_verify((string)($_SESSION['user'] ?? ''), post_str('telerix_old_pw'))) {
+      flash('error', 'Das aktuelle Passwort ist falsch.');
+   } elseif (!valid_username($user)) {
+      flash('error', 'Benutzername: nur A-Z, a-z, 0-9, Punkt, Unterstrich und Bindestrich (max. 64 Zeichen).');
+   } elseif ($new !== post_str('telerix_new_pw_b')) {
+      flash('error', 'Die neuen Passwörter stimmen nicht überein.');
+   } elseif (strlen($new) < PASSWORD_MIN_LENGTH) {
+      flash('error', 'Das neue Passwort muss mindestens ' . PASSWORD_MIN_LENGTH . ' Zeichen lang sein.');
+   } else {
+      admin_save($user, $new);
+      /* Neue Session-ID nach Änderung der Zugangsdaten */
+      login_session($user);
+      flash('ok', 'Zugangsdaten wurden geändert.');
    }
 
    //Zeige Seite
-   header('Location: configuration.php');
-?>
+   redirect('configuration.php');

@@ -7,8 +7,9 @@
 
 
 <?php
-if ( $_FILES['uploaddatei']['name']  <> "*.*" )
+if ($_SERVER['REQUEST_METHOD'] === 'POST')
 {
+    require_post_csrf();
     // Datei wurde durch HTML-Formular hochgeladen
     // und kann nun weiterverarbeitet werden
     move_uploaded_file (
@@ -34,6 +35,7 @@ if ( $_FILES['uploaddatei']['name']  <> "*.*" )
 <br />
 </div>
 <form name="uploadformular" enctype="multipart/form-data" action="listupload.php" method="post">
+<?= csrf_field() ?>
 <input type="file" name="uploaddatei" size="60" maxlength="255" class="w3-button w3-blue">
 <input type="Submit" name="submit" value="Datei hochladen" class="w3-button w3-dark-gray">
 <a href='settings.php'><input type="button" value="Fertig" class="w3-button w3-dark-gray" /></a>

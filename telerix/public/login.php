@@ -1,24 +1,24 @@
 <?php
-   include(__DIR__ . '/../lib/userdata.php');
-   $username=$_POST['tuser'];
-   $password=$_POST['tpass'];
-   //echo password_hash($password,PASSWORD_DEFAULT); Funktion um ein Passwort zu erstellen
+   require_once __DIR__ . '/../lib/auth.php';
+   telerix_session_start();
+   require_post_csrf();
 
-   if($username != $requser)
-   {
-      include('index.php');
-      exit();
+   $wait = throttle_remaining();
+   if ($wait > 0) {
+      flash('error', 'Zu viele Fehlversuche. Bitte in ' . (int)ceil($wait / 60) . ' Minute(n) erneut versuchen.');
+      redirect('index.php');
    }
-   //$reqpass='$2y$10$ECffelL3xKhlV.35g/K62ucl8uYCTc5GiQ2RWwDuhi/2Sk3AZx1pe';
 
-   if(password_verify($password, $reqpass)) {
-      /* User ist authentifiziert - Starte Session*/
-      session_start();
-      $_SESSION['status'] = "logged in";
-      include('start.php');
+   $username = post_str('tuser');
+   if (admin_verify($username, post_str('tpass'))) {
+      /* User ist authentifiziert - Starte Session */
+      throttle_reset();
+      login_session($username);
+      redirect('start.php');
    }
-   else
-   {
-      include('index.php');
-   }
-?>
+
+   throttle_fail();
+   /* Bremst automatisierte Versuche zusätzlich. */
+   sleep(1);
+   flash('error', 'Benutzername oder Passwort falsch.');
+   redirect('index.php');

@@ -1,5 +1,6 @@
 <?php
 require(__DIR__ . '/../lib/checklogin.php');
+require_post_csrf();
 $sip_id = $_POST["sip_id"];
 $sip_password = $_POST["sip_pw"];
 $sip_registrar = $_POST["sip_reg"];
@@ -25,5 +26,5 @@ $sip_registrar = preg_replace ( '/[^a-z0-9.:\/\-_]/i', '', $sip_registrar);
 system("../lib/sh/set_sipconfig.sh $sip_id $sip_password $sip_registrar");
 system("../lib/sh/asterisk_restart.sh");
 
-header('Location: configuration.php');
+redirect('configuration.php');
 ?>
