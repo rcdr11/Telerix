@@ -33,6 +33,8 @@ Beide Dateien werden nicht eingecheckt. Änderungen übernehmen mit `docker comp
 | `TELERIX_EXTERNAL_ADDRESS` | Öffentliche IPv4-Adresse oder Hostname für SIP/RTP, siehe [Kein Ton beim Anrufer](#kein-ton-beim-anrufer) |
 | `TELERIX_TRUSTED_PROXIES` | Adresse(n) des Reverse-Proxys, siehe [Reverse-Proxy](#reverse-proxy-davor-setzen) |
 | `TELERIX_COOKIE_SECURE` | `1` hinter einem HTTPS-Proxy: Das Session-Cookie wird dann nur über HTTPS gesendet. |
+| `TELERIX_AUDIO_ANHEBUNG_DB` | Lautstärke am Telefon, 0 bis 15 dB (Standard 5 ≈ −20 dBFS), siehe [Tonqualität](tonqualitaet.md) |
+| `TELERIX_AUDIO_PUFFER_SEKUNDEN` | Vorlauf gegen Stockungen des Streams, 0 bis 10 s (Standard 4). Um diese Zeit kommt der Ton verzögert an. |
 | `TELERIX_TESTPHONE_PASSWORD` | Legt ein Testtelefon `testphone` an (mind. 12 Zeichen aus `A-Z a-z 0-9 . _ + -`). Extension 100 spielt Piepton und Stream. |
 
 Ungültige Werte bei `TELERIX_EXTERNAL_ADDRESS` und `TELERIX_TRUSTED_PROXIES` verhindern den Start. Die Meldung

@@ -79,6 +79,7 @@ von Hand so einrichten, wie es das [Dockerfile](Dockerfile) und [docker/entrypoi
 - [Konfiguration und Betrieb auf einem Server](docs/konfiguration.md): Einstellungen, Umgebungsvariablen,
   Reverse-Proxy, SIP/NAT, Passwort vergessen
 - [Sicherung und Updates](docs/sicherung-und-updates.md)
+- [Tonqualität am Telefon](docs/tonqualitaet.md): Aufbereitung des Streams, Messwerte, Nachjustieren
 - [Was wurde gegenüber dem Original geändert?](docs/aenderungen.md): Sicherheit, PJSIP, bekannte Einschränkungen
 - [Entwicklung](docs/entwicklung.md): Aufbau, Tests, neue Version veröffentlichen
 

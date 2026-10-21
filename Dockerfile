@@ -26,6 +26,7 @@ RUN apk add --no-cache \
       supervisor=4.3.0-r1 \
       mpg123=1.33.5-r0 \
       sox=14.4.2-r14 \
+      mbuffer=20251025-r0 \
  # Benutzer: PHP läuft als "telerix". Die Gruppe "astctl" darf den
  # Asterisk-Control-Socket benutzen (asterisk -rx) – sonst nichts.
  && addgroup -S telerix \

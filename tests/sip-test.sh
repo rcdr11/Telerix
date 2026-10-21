@@ -84,6 +84,10 @@ call() {
    sleep $(($2 - 6))
    docker exec "$PROV" sh -c "sox -t wav /tmp/$1.wav16 -t raw /tmp/$1.raw" 2>/dev/null
    CALL_STATS="$(docker exec "$PROV" php84 /analyze.php "/tmp/$1.raw" 16000 "$ANSAGE_SKIP")"
+   # Fehlt Asterisk Audio, sendet es keine Pakete: die Aufnahme ist dann
+   # kürzer als der Anruf. Fehlende Sekunden = Anrufdauer - Aufnahmedauer.
+   local dauer; dauer="$(docker exec "$PROV" php84 /analyze.php "/tmp/$1.raw" 16000 0 | awk '{split($1, a, "="); print a[2]}')"
+   CALL_MISSING="$(awk -v d="$dauer" -v s="$2" 'BEGIN {printf "%.1f", s - d}')"
 }
 
 cleanup() {
@@ -126,6 +130,9 @@ STREAM_IP="$(ip_of "$STREAM")"
 check "Anbieter läuft ($PROV_IP), Teststream läuft ($STREAM_IP)" '[ -n "$PROV_IP" ] && [ -n "$STREAM_IP" ]'
 
 login
+# Eine von anderen Tests hochgeladene eigene Ansage entfernen
+t="$(token ansage.php)"
+curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d action=delete "$BASE/ansage.php"
 set_stream "http://$STREAM_IP:8099/live"
 set_sip 4711 TestGeheim123 "$PROV_IP"
 check "Telerix registriert sich beim Anbieter" 'wait_registered' || tx_cli "pjsip show registrations" | grep telerix-trunk-reg | sed "s/^/  INFO /"
@@ -139,18 +146,23 @@ echo "== Einstellungen in Asterisk"
 check "Data directory ist /usr/share/asterisk" 'tx_cli "core show settings" | grep -q "Data directory: *\/usr\/share\/asterisk"'
 check "Ton 'beep' ist auffindbar" 'tx_cli "core show sound beep" | grep -qi "gsm"'
 
-echo "== Skriptausgabe (telerix-stream direkt, 35 s)"
+echo "== Skriptausgabe (wie Asterisk in Echtzeit gelesen, 40 s)"
 RATE=8000
 in_tx "grep -q '^format=slin16' /etc/asterisk/musiconhold.conf" && RATE=16000
 $DC cp tests/sip/analyze.php telerix:/tmp/analyze.php >/dev/null 2>&1
+$DC cp tests/sip/realtime.php telerix:/tmp/realtime.php >/dev/null 2>&1
 # Testkopie markieren und danach samt Kindprozessen beenden (die Wartemusik
 # von Asterisk läuft parallel weiter und bleibt unberührt)
-in_tx "su -s /bin/sh asterisk -c 'TELERIX_SKRIPTTEST=1 timeout 35 /usr/local/bin/telerix-stream > /tmp/skript.raw' 2>/dev/null &
-   sleep 37
+in_tx "rm -f /tmp/echtzeit.txt
+   su -s /bin/sh asterisk -c 'TELERIX_SKRIPTTEST=1 /usr/local/bin/telerix-stream | php84 /tmp/realtime.php $RATE 40 /tmp/skript.raw > /tmp/echtzeit.txt' 2>/dev/null &
+   for i in \$(seq 1 60); do [ -s /tmp/echtzeit.txt ] && break; sleep 1; done
    for p in /proc/[0-9]*; do grep -qz TELERIX_SKRIPTTEST=1 \$p/environ 2>/dev/null && kill -9 \${p#/proc/} 2>/dev/null; done; true"
-info "stream.url: $(in_tx "cat /var/lib/telerix/asterisk/stream.url"), Ausgabe: $(in_tx "wc -c < /tmp/skript.raw") Bytes"
-SKRIPT="$(in_tx "php84 /tmp/analyze.php /tmp/skript.raw $RATE 5")"
+ECHTZEIT="$(in_tx "cat /tmp/echtzeit.txt")"
+SKRIPT="$(in_tx "php84 /tmp/analyze.php /tmp/skript.raw $RATE 0" | sed 's/ aussetzer.*//')"
 info "Abtastrate $RATE Hz: $SKRIPT"
+info "Echtzeit-Leser: $ECHTZEIT"
+check "Keine Aussetzer trotz Stockungen im Stream" 'grep -q "aussetzer=0 " <<<"$ECHTZEIT"'
+check "Verzögerung bis zum Ton höchstens 6 s" 'awk -v s="$ECHTZEIT" "BEGIN {split(s, a, \"verzoegerung=\"); exit !(a[2] + 0 <= 6)}"'
 
 echo "== Anruf (Ansage und Wartemusik)"
 START="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -160,7 +172,11 @@ info "Aufnahme ab Sekunde $ANSAGE_SKIP: $CALL_STATS"
 check "Begrüßungsansage wird gespielt" 'grep -q "Playback!tx/willkommen-gottesdienst" <<<"$CALL_APP"'
 check "Keine Meldung 'does not exist'" '! $DC logs --since "$START" telerix 2>/dev/null | grep -q "does not exist"'
 check "Genau ein eingehender Anruf bei Telerix" '[ "$CALL_CHANNELS" = 1 ]'
-check "Wartemusik kommt an (Pegel über -50 dBFS)" 'awk -v s="$CALL_STATS" "BEGIN {split(s,a,\"rms=\"); exit !(a[2]+0 > -50)}"'
+info "Aufnahme kürzer als der Anruf um $CALL_MISSING s (davon 2 s Wait() im Dialplan ohne Ton)"
+# Zielwerte der Aufbereitung (docs/tonqualitaet.md)
+stat_of() { awk -v s="$CALL_STATS" -v k="$1=" 'BEGIN {split(s, a, k); split(a[2], b, " "); print b[1] + 0}'; }
+check "Pegel der Wartemusik -20 dBFS (±3)" 'awk -v r="$(stat_of rms)" "BEGIN {exit !(r >= -23 && r <= -17)}"'
+check "Spitzen unter -3 dBFS" 'awk -v p="$(stat_of spitze)" "BEGIN {exit !(p < -3)}"'
 
 echo "== Eigene Ansage wird bevorzugt"
 docker exec "$PROV" sh -c "sox -n -r 16000 -c 1 /tmp/eigene.wav synth 3 sine 600 vol 0.3"
