@@ -27,16 +27,33 @@ Browser ──HTTP (127.0.0.1:8080)──> nginx ──> PHP-FPM (Benutzer teler
 Im Container laufen unter supervisord: Asterisk (als `asterisk`), PHP-FPM (als `telerix`) und nginx
 (Worker als `nginx`).
 
-## Versionen und reproduzierbarer Build
+## Versionen und Build
 
-- Basis-Image per Tag und Digest festgelegt:
-  `alpine:3.24.2@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6`
-- Alle Pakete sind auf exakte Versionen gepinnt (u. a. Asterisk `22.9.0-r0`, PHP `8.4.27-r0`, nginx `1.30.6-r0`).
-  Asterisk 22 ist die aktuelle LTS-Linie (Sicherheitsupdates bis voraussichtlich 2029).
-- Alpine hält in einem Release-Zweig nur die neueste Paketrevision vor. Wird ein Paket aktualisiert, **schlägt der
-  Build fehl**, statt still eine andere Version einzubauen. Dann die Versionen im `Dockerfile` anpassen.
-  Aktuelle Versionen zeigt:
-  `docker run --rm alpine:3.24.2 sh -c "apk update -q && apk policy asterisk php84"`
+- Basis-Image per Tag und Prüfsumme festgelegt:
+  `alpine:3.24.2@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6`.
+  Alpine 3.24 bekommt Sicherheitsupdates voraussichtlich bis 2028.
+- Pakete sind nur auf ihre **Versionsreihe** festgelegt, z. B. `nginx~1.30` (jede 1.30.x) und `asterisk~22`
+  (LTS-Reihe, Sicherheitsupdates bis voraussichtlich 2029). Für PHP gilt eine **Mindestversion**, `php84>=8.4.27`,
+  weil ältere Versionen CVE-2026-109618 und CVE-2026-109619 enthalten.
+- **Warum nicht exakt?** Alpine hält in einem Release-Zweig nur die neueste Version eines Pakets vor. Bis
+  0.05-mod waren die Versionen exakt festgelegt; jedes Paket-Update bei Alpine machte Telerix dann unbaubar, bis das
+  Dockerfile angepasst und ein Release erstellt war (so geschehen mit nginx `1.30.4-r1` → `1.30.6-r0`). Jetzt
+  kommen Korrektur- und Sicherheitsupdates beim nächsten Neubau (`./update.sh` oder `docker compose up -d --build`)
+  automatisch mit. Größere Sprünge, etwa Asterisk 23 oder PHP 8.5, gibt es nur durch eine Änderung im Dockerfile.
+- Welche Versionen gerade aktuell sind, zeigt:
+  `docker run --rm alpine:3.24.2 sh -c "apk update -q && apk policy asterisk php84 nginx"`
+
+## Monatliche Prüfung auf GitHub
+
+`.github/workflows/build.yml` baut das Image am 1. jedes Monats ohne Cache, startet es und lässt
+`tests/smoke-test.sh` laufen. Schlägt das fehl, schickt GitHub eine Mail an die Person, die den Workflow zuletzt
+geändert hat, und das Protokoll steht unter *Actions*. So fällt ein Problem mit den Alpine-Paketen auf, bevor ein
+Update oder eine Neuinstallation bei Nutzern scheitert.
+
+- Geplante Läufe prüfen immer den Standard-Branch (`modernisierung`). Die Datei muss dort liegen, damit sie läuft.
+- Von Hand starten: *Actions → Build und Rauchtest → Run workflow*, dabei lässt sich auch ein anderer Branch wählen.
+- Ohne Aktivität im Repository schaltet GitHub geplante Läufe nach 60 Tagen ab und kündigt das vorher per Mail an.
+  Dann unter *Actions* wieder einschalten.
 
 ## Tests
 
@@ -54,7 +71,7 @@ Vorher eine Sicherung herunterladen oder auf einer Testinstallation laufen lasse
 
 ## Neue Version veröffentlichen
 
-1. Änderungen committen, z. B. neue Paketversionen im `Dockerfile`.
+1. Änderungen committen.
 2. `TELERIX_VERSION` in `telerix/lib/bootstrap.php` und `user_agent` in `asterisk/pjsip.conf` erhöhen
    (z. B. auf `0.06-mod`), ebenso die Versionsangabe oben in der README.
 3. Neu bauen (`docker compose up -d --build`) und die Tests laufen lassen.

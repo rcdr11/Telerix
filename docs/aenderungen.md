@@ -47,6 +47,8 @@ der Container läuft mit `cap_drop: ALL` (plus den zum Start nötigen Fähigkeit
   Begrüßungsansage abschaltbar, diese Einstellungen auch in der Sicherung
 - Ab 0.06-mod: Klangprofil und Hochpass einstellbar, Hörprobe im Browser (Telefonnetz und HD), Codec je Anrufer auf
   der Startseite, Neuversuch nach 2 s statt 30 s, wenn der Stream abbricht
+- Ab 0.06-mod: Pakete nur noch auf ihre Versionsreihe festgelegt (PHP mit Mindestversion), damit ein Paket-Update
+  bei Alpine den Build nicht mehr scheitern lässt; monatlicher Build mit Rauchtest auf GitHub
 - Ab 0.06-mod: Icecast-Status auf der Startseite mit Grund bei Fehlern, eigener Statusadresse, Erkennung von
   AzuraCast, nur dem eigenen Mountpoint und Ausblenden; 30 s zwischengespeichert, damit die Startseite nicht bei
   jedem Aufruf auf den Server wartet

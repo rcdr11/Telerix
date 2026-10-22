@@ -2,32 +2,39 @@
 #
 # Telerix (veränderte Version) – Asterisk 22 + nginx + PHP-FPM 8.4 auf Alpine.
 #
-# Basis-Image und Paketversionen sind fest gepinnt. Alpine hält in einem
-# Release-Zweig nur die jeweils neueste Paketrevision vor: Wird ein Paket
-# aktualisiert, schlägt der Build bewusst fehl, statt still eine andere
-# Version einzubauen. Dann die Versionen unten anpassen (siehe README).
+# Das Basis-Image ist mit Prüfsumme festgelegt, die Pakete nur auf ihre
+# Versionsreihe (z. B. nginx~1.30 = jede 1.30.x). Alpine hält in einem
+# Release-Zweig nur die jeweils neueste Paketversion vor; exakte Versionen
+# ließen den Build bei jedem Paket-Update von Alpine scheitern. So kommen
+# Korrektur- und Sicherheitsupdates beim nächsten Neubau automatisch mit,
+# größere Sprünge (z. B. Asterisk 23, PHP 8.5) nur durch eine Änderung hier.
+# Ein monatlicher Build auf GitHub prüft, dass das Image baubar bleibt
+# (.github/workflows/build.yml).
 
 FROM alpine:3.24.2@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6
 
-ARG ASTERISK_VERSION=22.9.0-r0
-# 8.4.27 behebt CVE-2026-109618 und CVE-2026-109619 ("PHP2Shell")
-ARG PHP_VERSION=8.4.27-r0
+# Asterisk: LTS-Reihe 22
+ARG ASTERISK_SERIES=22
+# Paketname php84 = immer PHP 8.4. Mindestversion statt Reihe: 8.4.27 behebt
+# CVE-2026-109618 und CVE-2026-109619 ("PHP2Shell"), älter darf es nie sein.
+ARG PHP_MIN=8.4.27
 
 RUN apk add --no-cache \
-      asterisk=${ASTERISK_VERSION} \
-      asterisk-sounds-en=${ASTERISK_VERSION} \
-      php84=${PHP_VERSION} \
-      php84-fpm=${PHP_VERSION} \
-      php84-session=${PHP_VERSION} \
-      php84-fileinfo=${PHP_VERSION} \
-      php84-mbstring=${PHP_VERSION} \
-      php84-openssl=${PHP_VERSION} \
-      php84-sodium=${PHP_VERSION} \
-      nginx=1.30.6-r0 \
-      supervisor=4.3.0-r1 \
-      mpg123=1.33.5-r0 \
-      sox=14.4.2-r14 \
-      mbuffer=20251025-r0 \
+      "asterisk~${ASTERISK_SERIES}" \
+      "asterisk-sounds-en~${ASTERISK_SERIES}" \
+      "php84>=${PHP_MIN}" \
+      "php84-fpm>=${PHP_MIN}" \
+      "php84-session>=${PHP_MIN}" \
+      "php84-fileinfo>=${PHP_MIN}" \
+      "php84-mbstring>=${PHP_MIN}" \
+      "php84-openssl>=${PHP_MIN}" \
+      "php84-sodium>=${PHP_MIN}" \
+      "nginx~1.30" \
+      "supervisor~4.3" \
+      "mpg123~1.33" \
+      "sox~14.4" \
+      # Version ist ein Datum, daher Mindestversion statt Reihe
+      "mbuffer>=20251025" \
  # Benutzer: PHP läuft als "telerix". Die Gruppe "astctl" darf den
  # Asterisk-Control-Socket benutzen (asterisk -rx) – sonst nichts.
  && addgroup -S telerix \
