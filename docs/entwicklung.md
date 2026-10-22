@@ -63,9 +63,10 @@ Bei laufendem Container, im Telerix-Ordner:
 tests/smoke-test.sh    # Login, CSRF, Uploads, Stream, SIP, Sicherung, Neustart, Dateirechte
 tests/proxy-test.sh    # Betrieb hinter einem Reverse-Proxy (startet Telerix mehrmals neu)
 tests/sip-test.sh      # nachgebildeter SIP-Anbieter: Ansage, Anrufe, Abmeldung, Tonpegel, Aussetzer
+tests/ui-test.sh       # Browser (Playwright): Schieberegler, Hörprobe mit Ladebalken, Aktualisierung der Startseite
 ```
 
-**Achtung:** `smoke-test.sh` und `sip-test.sh` überschreiben Stream-Adresse, SIP-Daten, Ansage und Nummernliste
+**Achtung:** `smoke-test.sh`, `sip-test.sh` und `ui-test.sh` überschreiben Stream-Adresse, SIP-Daten, Ansage und Nummernliste
 mit Testwerten.
 Vorher eine Sicherung herunterladen oder auf einer Testinstallation laufen lassen.
 

@@ -97,8 +97,13 @@ function logout_session(): void
    session_destroy();
 }
 
-/* Für alle geschützten Seiten: ohne gültige Anmeldung zurück zum Login. */
-function require_login(): void
+/*
+ * Für alle geschützten Seiten: ohne gültige Anmeldung zurück zum Login.
+ * $touch = false für automatische Abrufe (Aktualisierung der Startseite):
+ * Sie zählen nicht als Bedienung, sonst bliebe ein offener Tab für immer
+ * angemeldet.
+ */
+function require_login(bool $touch = true): void
 {
    telerix_session_start();
    if (!is_logged_in()) {
@@ -108,7 +113,9 @@ function require_login(): void
       logout_session();
       redirect('index.php');
    }
-   $_SESSION['visit_time'] = time();
+   if ($touch) {
+      $_SESSION['visit_time'] = time();
+   }
 }
 
 /* ---------- Login-Drosselung ---------- */

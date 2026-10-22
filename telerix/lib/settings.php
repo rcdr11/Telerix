@@ -21,25 +21,28 @@ require_once __DIR__ . '/bootstrap.php';
 require_once __DIR__ . '/address.php';
 require_once __DIR__ . '/stream.php';
 
-const AUDIO_GAIN_MIN = 0;
-const AUDIO_GAIN_MAX = 15;
+/* Lautstärke in dB: negativ = leiser, positiv = lauter (mit Begrenzer) */
+const AUDIO_GAIN_MIN = -24;
+const AUDIO_GAIN_MAX = 24;
 const AUDIO_BUFFER_MIN = 0;
 const AUDIO_BUFFER_MAX = 10;
 const TESTPHONE_PASSWORD_MIN_LENGTH = 12;
 /* Muss zu asterisk/stream.sh passen (gueltiger_hochpass, gueltiges_profil). */
 const AUDIO_HIGHPASS_CHOICES = [0, 50, 80, 120, 180, 250];
 const AUDIO_PROFILES = [
+   'aus'     => 'Aus (unbearbeitet)',
    'sprache' => 'Sprache',
    'musik'   => 'Sprache und Musik',
-   'aus'     => 'Ohne Leveler',
 ];
 
-/* Einstellung => Umgebungsvariable (null = nur im Webinterface) und Standardwert */
+/* Einstellung => Umgebungsvariable (null = nur im Webinterface) und Standardwert.
+   Standard für den Ton: unbearbeitet (Anhebung, Leveler und Hochpass aus),
+   Telerix reicht den Stream dann nur in Mono und 16 kHz weiter. */
 const SETTINGS = [
-   'audio_gain_db'      => ['env' => 'TELERIX_AUDIO_ANHEBUNG_DB',     'default' => 5],
+   'audio_gain_db'      => ['env' => 'TELERIX_AUDIO_ANHEBUNG_DB',     'default' => 0],
    'audio_buffer_s'     => ['env' => 'TELERIX_AUDIO_PUFFER_SEKUNDEN', 'default' => 4],
-   'audio_profile'      => ['env' => null,                            'default' => 'sprache'],
-   'audio_highpass_hz'  => ['env' => null,                            'default' => 180],
+   'audio_profile'      => ['env' => null,                            'default' => 'aus'],
+   'audio_highpass_hz'  => ['env' => null,                            'default' => 0],
    'announcement'       => ['env' => null,                            'default' => true],
    'external_address'   => ['env' => 'TELERIX_EXTERNAL_ADDRESS',      'default' => ''],
    'testphone_password' => ['env' => 'TELERIX_TESTPHONE_PASSWORD',    'default' => ''],
@@ -162,6 +165,12 @@ function settings_env(string $key): mixed
 function setting_locked(string $key): bool
 {
    return settings_env($key) !== null;
+}
+
+/* Lautstärke für die Anzeige: "0 dB (unverändert)", "+6 dB", "-12 dB" */
+function gain_text(int $db): string
+{
+   return $db === 0 ? '0 dB (unverändert)' : sprintf('%+d dB', $db);
 }
 
 /* Hinweis für gesperrte Felder im Webinterface. */

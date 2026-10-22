@@ -201,11 +201,20 @@ probe sprache 5 180 sprache 16
 probe musik 5 180 musik 16
 probe aus 5 0 aus 16
 probe aus250 5 250 aus 16
-info "Orgel leise/laut (Original 18 dB Unterschied): Sprache $(dyn sprache) dB, Sprache und Musik $(dyn musik) dB, ohne Leveler $(dyn aus) dB"
+info "Orgel leise/laut (Original 18 dB Unterschied): Sprache $(dyn sprache) dB, Sprache und Musik $(dyn musik) dB, aus $(dyn aus) dB"
 check "'Sprache und Musik' erhält mehr Dynamik als 'Sprache' (mind. 2 dB)" 'awk -v m="$(dyn musik)" -v s="$(dyn sprache)" "BEGIN {exit !(m >= s + 2)}"'
-check "'Ohne Leveler' erhält die Dynamik (mind. 15 dB)" 'awk -v a="$(dyn aus)" "BEGIN {exit !(a >= 15)}"'
+check "'Aus' erhält die Dynamik (mind. 15 dB)" 'awk -v a="$(dyn aus)" "BEGIN {exit !(a >= 15)}"'
 info "Orgel laut ohne Hochpass $(seg aus 9 6) dBFS, mit Hochpass 250 Hz $(seg aus250 9 6) dBFS"
 check "Hochpass 250 Hz dämpft den Akkord (131-262 Hz) um mind. 3 dB" 'awk -v a="$(seg aus 9 6)" -v b="$(seg aus250 9 6)" "BEGIN {exit !(a - b >= 3)}"'
+# Standard (alles aus): Ton wie im Stream; Vergleich mit dem direkt dekodierten Teststream
+$DC cp "$TMP/test.mp3" telerix:/tmp/test.mp3 >/dev/null 2>&1
+set_stream "http://$STREAM_IP:8099/steady"
+probe aus0 0 0 aus 20
+probe leiser -12 0 aus 20
+REF="$(in_tx "sox /tmp/test.mp3 -n remix - rate 16000 trim 0 20 stats 2>&1" | awk '/RMS lev dB/ {print $4}')"
+info "Teststream direkt: RMS $REF dBFS; unbearbeitet: $(seg aus0 0 20) dBFS; -12 dB: $(seg leiser 0 20) dBFS"
+check "Standard unbearbeitet: Pegel wie im Stream (±0,5 dB)" 'awk -v a="$(seg aus0 0 20)" -v r="$REF" "BEGIN {d = a - r; exit !(d >= -0.5 && d <= 0.5)}"'
+check "Lautstärke -12 dB macht 12 dB leiser (±0,5 dB)" 'awk -v a="$(seg aus0 0 20)" -v b="$(seg leiser 0 20)" "BEGIN {d = a - b; exit !(d >= 11.5 && d <= 12.5)}"'
 check "Ungültige Werte für die Hörprobe abgelehnt" '! in_tx "su -s /bin/sh telerix -c \"/usr/local/bin/telerix-stream --hoerprobe 5 5 100 sprache\"" >/dev/null 2>&1'
 
 echo "== Hörprobe im Webinterface"
@@ -213,6 +222,8 @@ t="$(token configuration.php)"
 curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d audio_gain_db=5 -d audio_profile=musik -d audio_highpass_hz=120 "$BASE/hoerprobe.php"
 conf="$(curl -s -b "$JAR" -c "$JAR" "$BASE/configuration.php")"
 check "Hörprobe erstellt und angezeigt" 'grep -q "H&ouml;rprobe vom" <<<"$conf" && grep -q "Sprache und Musik," <<<"$conf"'
+probe_json="$(curl -s -b "$JAR" -c "$JAR" -H "Accept: application/json" --data-urlencode "csrf=$(token configuration.php)" -d audio_gain_db=-6 -d audio_profile=aus -d audio_highpass_hz=0 "$BASE/hoerprobe.php")"
+check "Hörprobe im Hintergrund (JSON mit neuem Ergebnis-Block)" 'grep -q "\"ok\":true" <<<"$probe_json" && grep -q "<audio" <<<"$probe_json" && grep -q "Lautst&auml;rke -6 dB" <<<"$probe_json"'
 check "Hörprobe hat nichts gespeichert" 'in_tx "grep -qx PROFIL=sprache /var/lib/telerix/asterisk/audio.conf"'
 for f in telefon hd; do
    curl -s -b "$JAR" -c "$JAR" -o "$TMP/probe-$f.wav" -D "$TMP/probe-$f.hdr" "$BASE/hoerprobe.php?f=$f"
@@ -297,6 +308,7 @@ prov_cli "channel originate Local/anruf@provider application Wait 12" >/dev/null
 sleep 5
 check "Codec im Kanal vermerkt (Accountcode g722)" 'tx_cli "core show channels concise" | grep "^PJSIP/" | cut -d"!" -f9 | grep -q g722'
 check "Startseite zeigt HD (G.722)" 'curl -s -b "$JAR" -c "$JAR" "$BASE/start.php" | grep -q "HD (G.722)"'
+check "Aktualisierung zeigt den Anrufer ebenfalls" 'curl -s -b "$JAR" -c "$JAR" "$BASE/start_status.php" | grep -q "HD (G.722)"'
 sleep 9
 
 echo "== Neustart des Containers"

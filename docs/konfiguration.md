@@ -8,14 +8,14 @@
 | --- | --- |
 | Konfiguration → Internetstream | Adresse des Icecast-MP3-Streams, z. B. `http://www.beispiel.de:8000/gottesdienst`. Fehlt `http://`, wird es ergänzt. Die neue Adresse gilt nach wenigen Sekunden, laufende Anrufe bleiben bestehen. Darunter: Icecast-Status auf der Startseite ein- oder ausblenden und bei Bedarf seine Adresse eintragen, siehe [Icecast-Status](#icecast-status-auf-der-startseite). |
 | Konfiguration → SIP-Konfiguration | SIP-ID, Passwort und Registrar des Anbieters. Wird ohne Neustart geladen. Das gespeicherte Passwort wird nicht wieder angezeigt, ein leeres Feld behält es bei. Alle Felder leeren schaltet die Registrierung ab. |
-| Konfiguration → Ton am Telefon | Lautstärke (0 bis +15 dB, Standard +5 ≈ −20 dBFS), Klangprofil (Sprache, Sprache und Musik, ohne Leveler), Hochpass (aus bis 250 Hz, Standard 180 Hz) und Vorlauf gegen Stockungen (0 bis 10 s, Standard 4). Gilt nach wenigen Sekunden, auch für laufende Anrufe. Die Hörprobe nimmt 20 s des Streams mit den gewählten Werten auf, ohne zu speichern. Siehe [Tonqualität](tonqualitaet.md). |
+| Konfiguration → Ton am Telefon | Lautstärke (Schieberegler −24 bis +24 dB), Klangprofil (aus, Sprache, Sprache und Musik), Hochpass (aus bis 250 Hz) und Vorlauf gegen Stockungen (0 bis 10 s, Standard 4). Standard ist unbearbeitet: Lautstärke 0 dB, Klangprofil und Hochpass aus. Gilt nach wenigen Sekunden, auch für laufende Anrufe. Die Hörprobe nimmt 20 s des Streams mit den gewählten Werten auf, ohne zu speichern. Siehe [Tonqualität](tonqualitaet.md). |
 | Konfiguration → Öffentliche Adresse | Öffentliche IPv4-Adresse oder Hostname für SIP/RTP, siehe [Kein Ton beim Anrufer](#kein-ton-beim-anrufer). Gilt nach einem Neustart von Asterisk. |
 | Konfiguration → Testtelefon | Testtelefon `testphone` mit Passwort (mind. 12 Zeichen aus `A-Z a-z 0-9 . _ + -`). Extension 100 spielt Piepton und Stream. |
 | Konfiguration → Zugangsdaten ändern | Benutzername und Passwort für das Webinterface |
 | Konfiguration → Nur über .env einstellbar | zeigt die Werte, die bewusst nur über `.env` gehen (siehe unten) |
 | Ansage | Begrüßungsansage ein- und ausschalten. Eigene Ansage hochladen (wav, mp3, ogg, flac bis 20 MB), sie wird in 8 kHz Mono umgewandelt. Ohne eigene Ansage läuft `ansagen/willkommen-gottesdienst.gsm`. Abgeschaltet hören Anrufer gleich nach dem Annehmen den Stream. |
 | Nummerverwaltung | Liste „Name Nummer“ (txt/csv, max. 1 MB). Statt der Nummer wird dann der Name des Anrufers angezeigt. |
-| Startseite | Laufende Anrufer mit Codec (HD oder Telefonqualität), siehe [HD oder Telefonqualität?](tonqualitaet.md#hd-oder-telefonqualität) |
+| Startseite | Laufende Anrufer mit Codec (HD oder Telefonqualität), siehe [HD oder Telefonqualität?](tonqualitaet.md#hd-oder-telefonqualität). Anrufer und Icecast-Status werden alle 5 Sekunden neu geladen, solange die Seite sichtbar ist. Das zählt nicht als Bedienung: Nach 4 Stunden ohne Bedienung wird trotzdem abgemeldet. |
 | Sicherung | Konfiguration verschlüsselt herunterladen und wieder einspielen, siehe [Sicherung und Updates](sicherung-und-updates.md) |
 | Updates | Prüfen, ob es eine neue Version gibt |
 
@@ -47,7 +47,7 @@ Zeile aus `.env` und führt `docker compose up -d` aus.
 
 | Einstellung in `.env` | Im Webinterface | Bedeutung |
 | --- | --- | --- |
-| `TELERIX_AUDIO_ANHEBUNG_DB` | Ton am Telefon | Lautstärke am Telefon, 0 bis 15 dB (Standard 5 ≈ −20 dBFS), siehe [Tonqualität](tonqualitaet.md) |
+| `TELERIX_AUDIO_ANHEBUNG_DB` | Ton am Telefon | Lautstärke am Telefon, −24 bis 24 dB (Standard 0 = unverändert), siehe [Tonqualität](tonqualitaet.md) |
 | `TELERIX_AUDIO_PUFFER_SEKUNDEN` | Ton am Telefon | Vorlauf gegen Stockungen des Streams, 0 bis 10 s (Standard 4). Um diese Zeit kommt der Ton verzögert an. |
 | `TELERIX_EXTERNAL_ADDRESS` | Öffentliche Adresse | Öffentliche IPv4-Adresse oder Hostname für SIP/RTP, siehe [Kein Ton beim Anrufer](#kein-ton-beim-anrufer) |
 | `TELERIX_TESTPHONE_PASSWORD` | Testtelefon | Legt ein Testtelefon `testphone` an (mind. 12 Zeichen aus `A-Z a-z 0-9 . _ + -`). Extension 100 spielt Piepton und Stream. |

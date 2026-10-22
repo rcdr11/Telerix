@@ -64,6 +64,8 @@ check "Session-Cookie HttpOnly + SameSite=Strict" 'grep -i "^set-cookie: TELERIX
 sid_after="$(grep TELERIXSID "$JAR" | awk '{print $7}')"
 check "Session-ID nach Login erneuert" '[ -n "$sid_after" ] && [ "$sid_before" != "$sid_after" ]'
 check "Startseite zeigt laufenden Asterisk" 'page start.php | grep -q "Asterisk: l&auml;uft"'
+check "Startseite wird regelmäßig neu geladen (data-refresh)" 'page start.php | grep -q "data-refresh=\"start_status.php\""'
+check "Aktualisierung liefert Anrufer-Bereich" 'page start_status.php | grep -q "Aktuelle Zuh&ouml;rer"'
 
 echo "== CSRF bei Aktionen"
 check "Auflegen per GET abgelehnt (405)" '[ "$(status "$BASE/hangup_all.php")" = 405 ]'
@@ -105,10 +107,17 @@ check "Passwort mit ; korrekt übernommen" 'in_container "asterisk -rx \"pjsip s
 
 echo "== Einstellungen (Ton, öffentliche Adresse, Testtelefon)"
 aconf() { in_container "cat /var/lib/telerix/asterisk/audio.conf"; }
+# Formular einzeilig, damit Attribute über Zeilen hinweg gefunden werden
+konf() { page configuration.php | tr -d '\n'; }
+# Standardwerte: ohne gespeicherte Einstellungen ist der Ton unbearbeitet
+in_container 'rm -f /var/lib/telerix/config/settings.json'
+check "Standard: Lautstärke 0 dB, Klangprofil aus, Hochpass aus" 'konf | grep -q "id=\"audio_gain_db\"[^>]*value=\"0\"" && konf | grep -q "value=\"aus\" selected" && konf | grep -q "value=\"0\" selected>aus (Standard)"'
 t="$(token configuration.php)"
 check "Konfigurationsseite zeigt Toneinstellungen" 'page configuration.php | grep -q "name=\"audio_gain_db\""'
 curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d audio_gain_db=99 -d audio_buffer_s=4 "$BASE/set_audio.php"
-check "Ungültige Lautstärke abgelehnt" 'page configuration.php | grep -q "Lautstärke: erlaubt sind ganze Zahlen von 0 bis 15"'
+check "Ungültige Lautstärke abgelehnt" 'page configuration.php | grep -q "Lautstärke: erlaubt sind ganze Zahlen von -24 bis 24"'
+curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d audio_gain_db=-12 "$BASE/set_audio.php"
+check "Leiser stellen (-12 dB) gespeichert" 'aconf | grep -qx "ANHEBUNG_DB=-12"'
 curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d audio_gain_db=8 -d audio_buffer_s=6 -d audio_profile=musik -d audio_highpass_hz=50 "$BASE/set_audio.php"
 check "Lautstärke und Vorlauf in audio.conf" 'aconf | grep -qx "ANHEBUNG_DB=8" && aconf | grep -qx "PUFFER_SEKUNDEN=6"'
 check "Klangprofil und Hochpass in audio.conf" 'aconf | grep -qx "PROFIL=musik" && aconf | grep -qx "HOCHPASS_HZ=50"'
@@ -118,9 +127,11 @@ curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d audio_pro
 check "Ungültiges Klangprofil abgelehnt" 'page configuration.php | grep -q "Klangprofil: ungültige Auswahl"'
 curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d audio_gain_db=5 -d audio_profile=sprache -d audio_highpass_hz=180 "$BASE/hoerprobe.php"
 check "Hörprobe ohne erreichbaren Stream: Meldung" 'page configuration.php | grep -q "Der Stream liefert gerade keinen Ton"'
+probe_json="$(curl -s -D "$TMP/probe.hdr" -b "$JAR" -c "$JAR" -H "Accept: application/json" --data-urlencode "csrf=$t" -d audio_gain_db=0 -d audio_profile=aus -d audio_highpass_hz=0 "$BASE/hoerprobe.php")"
+check "Hörprobe im Hintergrund: Antwort als JSON mit Meldung" 'grep -qi "^content-type: application/json" "$TMP/probe.hdr" && grep -q "\"ok\":false" <<<"$probe_json" && grep -q "liefert gerade keinen Ton" <<<"$probe_json"'
 check "Hörprobe ohne Token abgelehnt (403)" '[ "$(status -d audio_gain_db=5 "$BASE/hoerprobe.php")" = 403 ]'
 check "Unbekannte Hörprobe-Fassung: 404" '[ "$(status "$BASE/hoerprobe.php?f=../config/admin.json")" = 404 ]'
-check "Gewählte Lautstärke im Formular" 'page configuration.php | grep -q "value=\"8\" selected"'
+check "Gewählte Lautstärke im Formular (Schieberegler)" 'konf | grep -q "id=\"audio_gain_db\"[^>]*value=\"8\"" && konf | grep -q "<output id=\"audio_gain_wert\" for=\"audio_gain_db\">+8 dB</output>"'
 check "Ohne Token abgelehnt (403)" '[ "$(status -d audio_gain_db=3 "$BASE/set_audio.php")" = 403 ]'
 curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" --data-urlencode 'external_address=1.2.3.4;x' "$BASE/set_external.php"
 check "Ungültige öffentliche Adresse abgelehnt" 'page configuration.php | grep -q "Öffentliche Adresse: IPv4-Adresse oder Hostname"'
@@ -242,6 +253,7 @@ echo "== Logout und Drosselung"
 t="$(token start.php)"
 curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" "$BASE/logout.php"
 check "Nach Logout kein Zugriff" '[ "$(status "$BASE/start.php")" = 303 ]'
+check "Aktualisierung nach Logout: Weiterleitung zum Login" '[ "$(status "$BASE/start_status.php")" = 303 ]'
 for i in 1 2 3 4 5; do
    t="$(token index.php)"
    curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" --data-urlencode "tuser=$USER" --data-urlencode "tpass=falsch$i" "$BASE/login.php"

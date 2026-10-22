@@ -51,6 +51,14 @@ form.inline { display: inline; }
 
 .hint { color: #333; font-size: 0.9em; }
 
+/* Schieberegler mit Wertanzeige (Lautstärke) */
+.slider-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; }
+.slider-row input[type=range] { flex: 1; min-width: 0; }
+.slider-row output { min-width: 10em; font-weight: bold; color: #333; }
+
+/* Ladebalken (Hörprobe) */
+.progress-bar { transition: width 0.25s linear; }
+
 @media screen and (max-width: 600px) {
   .col-25, .col-75, input[type=submit], button.submit { width: 100%; margin-top: 0; }
 }

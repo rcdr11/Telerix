@@ -45,8 +45,14 @@ der Container läuft mit `cap_drop: ALL` (plus den zum Start nötigen Fähigkeit
 - Rückmeldungen (Erfolg/Fehler) nach jedem Speichern
 - Ab 0.06-mod: Lautstärke, Vorlauf, öffentliche Adresse und Testtelefon im Webinterface (`.env` hat Vorrang),
   Begrüßungsansage abschaltbar, diese Einstellungen auch in der Sicherung
-- Ab 0.06-mod: Klangprofil und Hochpass einstellbar, Hörprobe im Browser (Telefonnetz und HD), Codec je Anrufer auf
-  der Startseite, Neuversuch nach 2 s statt 30 s, wenn der Stream abbricht
+- Ab 0.06-mod: Klangprofil und Hochpass einstellbar, Lautstärke als Schieberegler von −24 bis +24 dB, Hörprobe im
+  Browser (Telefonnetz und HD, mit Ladebalken statt Neuladen), Codec je Anrufer auf der Startseite, Neuversuch nach
+  2 s statt 30 s, wenn der Stream abbricht
+- **Ab 0.06-mod geänderter Standard für den Ton: unbearbeitet** (Lautstärke 0 dB, Klangprofil und Hochpass aus).
+  Bis 0.05-mod galt Sprache, +5 dB, Hochpass 180 Hz. Nach dem Update klingt es deshalb anders, wer die
+  Einstellungen nicht selbst gespeichert hat; Werte aus `.env` gelten unverändert. Begründung in
+  [Tonqualität](tonqualitaet.md#was-passiert-mit-dem-stream).
+- Ab 0.06-mod: Anrufer und Icecast-Status auf der Startseite werden alle 5 Sekunden neu geladen
 - Ab 0.06-mod: Pakete nur noch auf ihre Versionsreihe festgelegt (PHP mit Mindestversion), damit ein Paket-Update
   bei Alpine den Build nicht mehr scheitern lässt; monatlicher Build mit Rauchtest auf GitHub
 - Ab 0.06-mod: Icecast-Status auf der Startseite mit Grund bei Fehlern, eigener Statusadresse, Erkennung von
