@@ -1,0 +1,60 @@
+# Prüft einmal im Monat, ob sich Telerix noch bauen, starten und bedienen
+# lässt.
+#
+# Alpine aktualisiert seine Pakete laufend, der Build nimmt jeweils die
+# neueste Version der im Dockerfile festgelegten Reihe. Schlägt das fehl,
+# schickt GitHub eine Mail, bevor ein Update oder eine Neuinstallation bei
+# Nutzern scheitert.
+#
+# Geplante Läufe prüfen immer den Standard-Branch. Von Hand starten:
+# Actions -> "Build und Rauchtest" -> "Run workflow" (Branch wählbar).
+# Hinweis: Ohne Aktivität im Repository schaltet GitHub geplante Läufe nach
+# 60 Tagen ab und kündigt das vorher per Mail an; dann dort wieder
+# einschalten.
+name: Build und Rauchtest
+
+on:
+  schedule:
+    # Am 1. jedes Monats um 05:17 UTC (nicht zur vollen Stunde, dann sind
+    # die GitHub-Runner oft überlastet)
+    - cron: "17 5 1 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Admin-Passwort für den Test anlegen
+        run: |
+          mkdir -p secrets
+          head -c 2000 /dev/urandom | LC_ALL=C tr -dc 'A-Za-z0-9' | cut -c 1-20 > secrets/admin_password.txt
+
+      - name: Image bauen (ohne Cache, wie bei einer Neuinstallation)
+        run: docker compose build --pull --no-cache
+
+      - name: Starten und auf "healthy" warten
+        run: |
+          docker compose up -d
+          for _ in $(seq 1 40); do
+            status="$(docker inspect -f '{{.State.Health.Status}}' "$(docker compose ps -q telerix)")"
+            [ "$status" = healthy ] && exit 0
+            sleep 3
+          done
+          echo "Container ist nicht healthy (Status: $status)"
+          exit 1
+
+      - name: Installierte Paketversionen
+        run: docker compose exec -T telerix sh -c 'apk info -v 2>/dev/null | grep -E "^(asterisk|php84|php84-fpm|nginx|supervisor|mpg123|sox|mbuffer)-[0-9]"'
+
+      - name: Rauchtest
+        run: tests/smoke-test.sh
+
+      - name: Protokoll bei Fehlern
+        if: failure()
+        run: docker compose logs --tail 200
