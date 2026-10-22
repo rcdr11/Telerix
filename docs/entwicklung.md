@@ -31,7 +31,7 @@ Im Container laufen unter supervisord: Asterisk (als `asterisk`), PHP-FPM (als `
 
 - Basis-Image per Tag und Digest festgelegt:
   `alpine:3.24.2@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6`
-- Alle Pakete sind auf exakte Versionen gepinnt (u. a. Asterisk `22.9.0-r0`, PHP `8.4.27-r0`, nginx `1.30.4-r1`).
+- Alle Pakete sind auf exakte Versionen gepinnt (u. a. Asterisk `22.9.0-r0`, PHP `8.4.27-r0`, nginx `1.30.6-r0`).
   Asterisk 22 ist die aktuelle LTS-Linie (Sicherheitsupdates bis voraussichtlich 2029).
 - Alpine hält in einem Release-Zweig nur die neueste Paketrevision vor. Wird ein Paket aktualisiert, **schlägt der
   Build fehl**, statt still eine andere Version einzubauen. Dann die Versionen im `Dockerfile` anpassen.

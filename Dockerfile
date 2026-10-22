@@ -23,7 +23,7 @@ RUN apk add --no-cache \
       php84-mbstring=${PHP_VERSION} \
       php84-openssl=${PHP_VERSION} \
       php84-sodium=${PHP_VERSION} \
-      nginx=1.30.4-r1 \
+      nginx=1.30.6-r0 \
       supervisor=4.3.0-r1 \
       mpg123=1.33.5-r0 \
       sox=14.4.2-r14 \
