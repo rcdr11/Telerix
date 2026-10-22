@@ -45,8 +45,8 @@
   </table>
 <?php if ($iceStatus !== null && $iceStatus['error'] === null && $iceStatus['rows']): ?>
   <p class="hint" style="color:#fff"><?= $iceStatus['own'] ? '' : 'Alle Mountpoints des Servers (der eigene lie&szlig; sich nicht zuordnen). ' ?>Telerix
-     selbst z&auml;hlt dabei als ein Zuh&ouml;rer, w&auml;hrend einer H&ouml;rprobe als zwei. Die Zahlen werden
-     alle <?= ICECAST_CACHE_SECONDS ?> Sekunden neu abgefragt.</p>
+     selbst z&auml;hlt dabei als ein Zuh&ouml;rer, w&auml;hrend einer H&ouml;rprobe als zwei. Die Anzeige wird
+     alle <?= LIVE_REFRESH_SECONDS ?> Sekunden aktualisiert.</p>
 <?php elseif ($iceStatus !== null && $iceStatus['error'] !== null): ?>
   <div>
   <a href="configuration.php#stream" class="w3-button w3-dark-gray w3-round" style="margin-bottom: 5px">Statusadresse einstellen</a>

@@ -1,9 +1,7 @@
 <?php
    require(__DIR__ . '/../lib/checklogin.php');
    require_once __DIR__ . '/../lib/asterisk.php';
-
-   /* Anrufer und Icecast-Status werden so oft neu geladen */
-   const LIVE_REFRESH_SECONDS = 5;
+   require_once __DIR__ . '/../lib/stream.php';
 
    $running = asterisk_running();
 

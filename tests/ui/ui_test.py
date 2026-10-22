@@ -84,8 +84,9 @@ with sync_playwright() as p:
     page.on('request', lambda r: 'start_status.php' in r.url and reqs.append(time.time()))
     page.goto(BASE + '/start.php')
     page.evaluate("document.querySelector('#live').firstElementChild.setAttribute('data-marke', '1')")
-    page.wait_for_timeout(11500)  # time.sleep würde die Ereignisse (request) zurückhalten
-    check(f'Regelmäßig nachgeladen ({len(reqs)} Abrufe in 11,5 s, alle 5 s)', len(reqs) >= 2)
+    # Alle 60 s; time.sleep würde die Ereignisse (request) zurückhalten
+    page.wait_for_timeout(65000)
+    check(f'Regelmäßig nachgeladen ({len(reqs)} Abruf(e) in 65 s, jede Minute)', len(reqs) >= 1)
     check('Inhalt ersetzt (Markierung verschwunden)', page.locator('#live [data-marke]').count() == 0)
     check('Anrufer-Bereich nach dem Nachladen vorhanden', 'Aktuelle Zuhörer' in page.text_content('#live'))
 

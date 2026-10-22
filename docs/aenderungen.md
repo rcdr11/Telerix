@@ -52,7 +52,7 @@ der Container läuft mit `cap_drop: ALL` (plus den zum Start nötigen Fähigkeit
   Bis 0.05-mod galt Sprache, +5 dB, Hochpass 180 Hz. Nach dem Update klingt es deshalb anders, wer die
   Einstellungen nicht selbst gespeichert hat; Werte aus `.env` gelten unverändert. Begründung in
   [Tonqualität](tonqualitaet.md#was-passiert-mit-dem-stream).
-- Ab 0.06-mod: Anrufer und Icecast-Status auf der Startseite werden alle 5 Sekunden neu geladen
+- Ab 0.06-mod: Anrufer und Icecast-Status auf der Startseite werden jede Minute neu geladen
 - Ab 0.06-mod: Pakete nur noch auf ihre Versionsreihe festgelegt (PHP mit Mindestversion), damit ein Paket-Update
   bei Alpine den Build nicht mehr scheitern lässt; monatlicher Build mit Rauchtest auf GitHub
 - Ab 0.06-mod: Icecast-Status auf der Startseite mit Grund bei Fehlern, eigener Statusadresse, Erkennung von

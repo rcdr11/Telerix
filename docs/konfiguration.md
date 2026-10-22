@@ -15,7 +15,7 @@
 | Konfiguration → Nur über .env einstellbar | zeigt die Werte, die bewusst nur über `.env` gehen (siehe unten) |
 | Ansage | Begrüßungsansage ein- und ausschalten. Eigene Ansage hochladen (wav, mp3, ogg, flac bis 20 MB), sie wird in 8 kHz Mono umgewandelt. Ohne eigene Ansage läuft `ansagen/willkommen-gottesdienst.gsm`. Abgeschaltet hören Anrufer gleich nach dem Annehmen den Stream. |
 | Nummerverwaltung | Liste „Name Nummer“ (txt/csv, max. 1 MB). Statt der Nummer wird dann der Name des Anrufers angezeigt. |
-| Startseite | Laufende Anrufer mit Codec (HD oder Telefonqualität), siehe [HD oder Telefonqualität?](tonqualitaet.md#hd-oder-telefonqualität). Anrufer und Icecast-Status werden alle 5 Sekunden neu geladen, solange die Seite sichtbar ist. Das zählt nicht als Bedienung: Nach 4 Stunden ohne Bedienung wird trotzdem abgemeldet. |
+| Startseite | Laufende Anrufer mit Codec (HD oder Telefonqualität), siehe [HD oder Telefonqualität?](tonqualitaet.md#hd-oder-telefonqualität). Anrufer und Icecast-Status werden jede Minute neu geladen, solange die Seite sichtbar ist. Das zählt nicht als Bedienung: Nach 4 Stunden ohne Bedienung wird trotzdem abgemeldet. |
 | Sicherung | Konfiguration verschlüsselt herunterladen und wieder einspielen, siehe [Sicherung und Updates](sicherung-und-updates.md) |
 | Updates | Prüfen, ob es eine neue Version gibt |
 

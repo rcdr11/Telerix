@@ -55,6 +55,9 @@ function stream_save(string $url): void
 
 /* ---------- Icecast-Status für die Startseite ---------- */
 
+/* Anrufer und Icecast-Status auf der Startseite so oft neu laden (Sekunden) */
+const LIVE_REFRESH_SECONDS = 60;
+
 /* Ergebnis zwischenspeichern, damit die Startseite nicht bei jedem Aufruf
    bis zu 3 s auf einen langsamen oder fehlenden Server wartet. */
 const ICECAST_CACHE_SECONDS = 30;
