@@ -25,7 +25,8 @@ services:
     environment:
       TELERIX_ADMIN_USER: admin
       TELERIX_ADMIN_PASSWORD_FILE: /run/secrets/telerix_admin_password
-      # Alle folgenden Werte kommen aus .env; leer = Funktion aus
+      # Alle folgenden Werte kommen aus .env; leer = Funktion aus bzw. die
+      # Einstellung im Webinterface gilt (siehe docs/konfiguration.md)
       TELERIX_UPDATE_REPO: ${TELERIX_UPDATE_REPO:-}
       TELERIX_EXTERNAL_ADDRESS: ${TELERIX_EXTERNAL_ADDRESS:-}
       TELERIX_TRUSTED_PROXIES: ${TELERIX_TRUSTED_PROXIES:-}

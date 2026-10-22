@@ -2,7 +2,7 @@
 
 > **Veränderte Version** von [Telerix 0.02 von Benjamin Hedert](https://github.com/beni1993/Telerix).
 > Sicherheitslücken geschlossen, Asterisk auf PJSIP umgestellt, Betrieb in Docker.
-> Fehler dieser Version bitte nicht im Original-Repository melden. Version: **0.05-mod**.
+> Fehler dieser Version bitte nicht im Original-Repository melden. Version: **0.06-mod**.
 
 Telerix macht einen Internetradio-Stream (Icecast, MP3), zum Beispiel einen Gottesdienst, **per Telefon hörbar**.
 Wer die Nummer anruft, hört eine Begrüßungsansage und danach den Stream. Eingestellt wird alles in einem
@@ -35,8 +35,9 @@ Im Browser <http://127.0.0.1:8080> öffnen, anmelden und dann:
 2. **Stream eintragen:** *Konfiguration → Internetstream*, z. B. `http://www.beispiel.de:8000/gottesdienst`
 3. **SIP-Zugang eintragen:** *Konfiguration → SIP-Konfiguration*, mit SIP-ID, Passwort und Registrar deines
    Telefonanbieters
-4. Optional: eigene **Begrüßungsansage** hochladen (*Ansage*) und eine **Namensliste** für die Anruferanzeige
-   (*Nummerverwaltung*)
+4. Optional: eigene **Begrüßungsansage** hochladen oder die Ansage abschalten (*Ansage*), den **Ton am Telefon**
+   anpassen, mit Hörprobe im Browser (*Konfiguration → Ton am Telefon*), und eine **Namensliste** für die
+   Anruferanzeige hochladen (*Nummerverwaltung*)
 
 Danach die Nummer anrufen: Nach der Ansage läuft der Stream.
 
@@ -49,10 +50,11 @@ Danach die Nummer anrufen: Nach der Ansage läuft der Stream.
 - **Daten bleiben erhalten** beim Stoppen, Neustarten und bei Updates. Sie liegen im Docker-Volume
   `telerix_telerix-data`. Nur `docker compose down -v` löscht sie.
 - **Sicherung:** Auf der Seite *Sicherung* die Konfiguration als verschlüsselte Datei herunterladen. Das
-  Backup-Passwort gut aufbewahren, ohne es lässt sich die Sicherung nicht einspielen.
+  Backup-Passwort gut aufbewahren, ohne es lässt sich die Sicherung nicht einspielen. Die Datei `.env` ist
+  nicht enthalten.
 - **Updates:** Die Seite *Updates* zeigt, ob es eine neue Version gibt. Aktualisiert wird mit `./update.sh`.
-- **Kein Ton beim Anrufer?** Auf einem Server hinter NAT muss die öffentliche Adresse eingetragen werden,
-  siehe [Kein Ton beim Anrufer](docs/konfiguration.md#kein-ton-beim-anrufer).
+- **Kein Ton beim Anrufer?** Auf einem Server hinter NAT muss die öffentliche Adresse eingetragen werden
+  (*Konfiguration → Öffentliche Adresse*), siehe [Kein Ton beim Anrufer](docs/konfiguration.md#kein-ton-beim-anrufer).
 
 ## Wichtige Befehle
 

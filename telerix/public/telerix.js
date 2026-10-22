@@ -9,6 +9,18 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   });
 
+  // Knöpfe mit data-busy zeigen beim Absenden, dass es dauert (z. B. Hörprobe).
+  // Erst nach dem Absenden sperren, sonst würde der Browser nicht absenden.
+  document.querySelectorAll('form').forEach(function (form) {
+    form.addEventListener('submit', function (e) {
+      var btn = e.submitter;
+      if (!e.defaultPrevented && btn && btn.hasAttribute('data-busy')) {
+        btn.textContent = btn.getAttribute('data-busy');
+        setTimeout(function () { btn.disabled = true; }, 0);
+      }
+    });
+  });
+
   // Elemente mit data-toggle blenden das Element mit der angegebenen ID ein/aus
   document.querySelectorAll('[data-toggle]').forEach(function (el) {
     el.addEventListener('click', function (e) {

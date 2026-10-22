@@ -7,7 +7,9 @@
 #   - einen Test-Livestream (tests/sip/stream/router.php) mit leiser,
 #     verhallter Sprache, der alle 10 s kurz stockt.
 # Geprüft werden Begrüßungsansage, Wartemusik, Abmeldung beim Stoppen,
-# doppelte Anrufe nach einem Neustart sowie Pegel und Aussetzer.
+# doppelte Anrufe nach einem Neustart, Pegel und Aussetzer, Klangprofile und
+# Hochpass (mit einem Orgel-Testsignal), Neuversuch nach einem Abbruch des
+# Streams, Hörprobe und Codec-Anzeige im Webinterface.
 #
 # Aufruf: tests/sip-test.sh   (Container muss laufen; ändert SIP-, Stream-
 # und Ansage-Einstellungen und erzeugt den Telerix-Container einmal neu)
@@ -62,6 +64,7 @@ login() {
 }
 set_stream() { local t; t="$(token configuration.php)"; curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" --data-urlencode "inetstream=$1" "$BASE/set_stream.php"; }
 set_sip() { local t; t="$(token configuration.php)"; curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" --data-urlencode "sip_id=$1" --data-urlencode "sip_pw=$2" --data-urlencode "sip_reg=$3" "$BASE/set_sipconfig.php"; }
+set_audio() { local t; t="$(token configuration.php)"; curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d "audio_gain_db=$1" -d "audio_buffer_s=$2" -d audio_profile=sprache -d audio_highpass_hz=180 "$BASE/set_audio.php"; }
 
 # Anrufe, die Telerix seit dem Start bekommen hat ("calls processed")
 tx_calls_processed() { tx_cli "core show channels count" | awk '/calls? processed/ {print $1}'; }
@@ -73,10 +76,13 @@ call() {
    local before; before="$(tx_calls_processed)"
    prov_cli "channel originate Local/anruf@provider application Record /tmp/$1.wav16,0,$2,qx" >/dev/null
    # 6 s lang alle 0,5 s nachsehen, welche Anwendung läuft; Playback merken
+   # und ob schon die Wartemusik (Stream) läuft
    CALL_APP=""
+   CALL_MOH=""
    for _ in $(seq 1 12); do
       app="$(tx_cli "core show channels concise" | grep "^PJSIP/" | head -1 | cut -d'!' -f6,7)"
       case "$app" in Playback*) CALL_APP="$app" ;; *) [ -z "$CALL_APP" ] && CALL_APP="$app" ;; esac
+      case "$app" in MusicOnHold*) CALL_MOH=1 ;; esac
       sleep 0.5
    done
    sleep 2
@@ -116,6 +122,15 @@ docker run --rm -v "$(winpath "$TMP"):/out" --entrypoint sh telerix:local -c '
    rms=$(sox /tmp/mix.wav -n stats 2>&1 | awk "/RMS lev dB/ {print \$4}")
    sox /tmp/mix.wav -C 128 /out/test.mp3 gain "$(awk -v r="$rms" "BEGIN {print -26 - r}")"
    sox /out/test.mp3 -n stats 2>&1 | grep -E "RMS lev|Pk lev|Length"
+   # Orgelakkord (131, 165, 196, 262 Hz), abwechselnd 8 s leise (etwa
+   # -42 dBFS) und laut (etwa -24 dBFS), wie piano und forte
+   cd /tmp
+   for f in 131 165 196 262; do sox -n -r 44100 -c 1 t$f.wav synth 8 sine $f; done
+   sox -m t131.wav t165.wav t196.wav t262.wav akkord.wav
+   sox akkord.wav akkord-n.wav gain -n -1
+   sox akkord-n.wav leise.wav gain -30 fade 0.3 8 0.3
+   sox akkord-n.wav laut.wav gain -12 fade 0.3 8 0.3
+   sox leise.wav laut.wav leise.wav laut.wav -c 2 -C 128 /out/musik.mp3
 ' | sed 's/^/  INFO Testsignal: /'
 docker rm -f "$PROV" "$STREAM" >/dev/null 2>&1
 docker run -d --name "$STREAM" --network "$NET" -e PHP_CLI_SERVER_WORKERS=4 -v "$(winpath "$TMP"):/srv:ro" --entrypoint php84 \
@@ -133,6 +148,9 @@ login
 # Eine von anderen Tests hochgeladene eigene Ansage entfernen
 t="$(token ansage.php)"
 curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d action=delete "$BASE/ansage.php"
+# Gemessen wird mit den Standardwerten der Tonaufbereitung (docs/tonqualitaet.md):
+# +5 dB, 4 s Vorlauf, Profil Sprache, Hochpass 180 Hz
+set_audio 5 4
 set_stream "http://$STREAM_IP:8099/live"
 set_sip 4711 TestGeheim123 "$PROV_IP"
 check "Telerix registriert sich beim Anbieter" 'wait_registered' || tx_cli "pjsip show registrations" | grep telerix-trunk-reg | sed "s/^/  INFO /"
@@ -164,6 +182,81 @@ info "Echtzeit-Leser: $ECHTZEIT"
 check "Keine Aussetzer trotz Stockungen im Stream" 'grep -q "aussetzer=0 " <<<"$ECHTZEIT"'
 check "Verzögerung bis zum Ton höchstens 6 s" 'awk -v s="$ECHTZEIT" "BEGIN {split(s, a, \"verzoegerung=\"); exit !(a[2] + 0 <= 6)}"'
 
+echo "== Klangprofile und Hochpass (Hörprobe-Modus, wie im Webinterface)"
+# probe <Name> <Anhebung> <Hochpass> <Profil> <Sekunden>: Ausgabe als Benutzer
+# telerix (wie die Hörprobe im Webinterface) nach /tmp/probe-<Name>.raw
+probe() { in_tx "su -s /bin/sh telerix -c '/usr/local/bin/telerix-stream --hoerprobe $5 $2 $3 $4' > /tmp/probe-$1.raw"; }
+# RMS eines Abschnitts: seg <Name> <ab Sekunde> <Länge>
+seg() { in_tx "sox -t raw -r 16000 -e signed -b 16 -c 1 /tmp/probe-$1.raw -n trim $2 $3 stats 2>&1" | awk '/RMS lev dB/ {print $4}'; }
+# Unterschied laut - leise im Orgelsignal (Abschnitte 1-7 s und 9-15 s)
+dyn() { awk -v a="$(seg "$1" 9 6)" -v b="$(seg "$1" 1 6)" 'BEGIN {printf "%.1f", a - b}'; }
+set_stream "http://$STREAM_IP:8099/steady"
+probe musiksprache 5 180 musik 20
+MS="$(in_tx "php84 /tmp/analyze.php /tmp/probe-musiksprache.raw 16000 0" | sed 's/ aussetzer.*//')"
+info "Sprache mit Profil 'Sprache und Musik': $MS"
+check "Hörprobe liefert genau 20 s" '[ "$(in_tx "stat -c %s /tmp/probe-musiksprache.raw")" = 640000 ]'
+check "Sprache auch mit 'Sprache und Musik' bei -20 dBFS (±3)" 'awk -v s="$MS" "BEGIN {split(s, a, \"rms=\"); r = a[2] + 0; exit !(r >= -23 && r <= -17)}"'
+set_stream "http://$STREAM_IP:8099/musik"
+probe sprache 5 180 sprache 16
+probe musik 5 180 musik 16
+probe aus 5 0 aus 16
+probe aus250 5 250 aus 16
+info "Orgel leise/laut (Original 18 dB Unterschied): Sprache $(dyn sprache) dB, Sprache und Musik $(dyn musik) dB, ohne Leveler $(dyn aus) dB"
+check "'Sprache und Musik' erhält mehr Dynamik als 'Sprache' (mind. 2 dB)" 'awk -v m="$(dyn musik)" -v s="$(dyn sprache)" "BEGIN {exit !(m >= s + 2)}"'
+check "'Ohne Leveler' erhält die Dynamik (mind. 15 dB)" 'awk -v a="$(dyn aus)" "BEGIN {exit !(a >= 15)}"'
+info "Orgel laut ohne Hochpass $(seg aus 9 6) dBFS, mit Hochpass 250 Hz $(seg aus250 9 6) dBFS"
+check "Hochpass 250 Hz dämpft den Akkord (131-262 Hz) um mind. 3 dB" 'awk -v a="$(seg aus 9 6)" -v b="$(seg aus250 9 6)" "BEGIN {exit !(a - b >= 3)}"'
+check "Ungültige Werte für die Hörprobe abgelehnt" '! in_tx "su -s /bin/sh telerix -c \"/usr/local/bin/telerix-stream --hoerprobe 5 5 100 sprache\"" >/dev/null 2>&1'
+
+echo "== Hörprobe im Webinterface"
+t="$(token configuration.php)"
+curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d audio_gain_db=5 -d audio_profile=musik -d audio_highpass_hz=120 "$BASE/hoerprobe.php"
+conf="$(curl -s -b "$JAR" -c "$JAR" "$BASE/configuration.php")"
+check "Hörprobe erstellt und angezeigt" 'grep -q "H&ouml;rprobe vom" <<<"$conf" && grep -q "Sprache und Musik," <<<"$conf"'
+check "Hörprobe hat nichts gespeichert" 'in_tx "grep -qx PROFIL=sprache /var/lib/telerix/asterisk/audio.conf"'
+for f in telefon hd; do
+   curl -s -b "$JAR" -c "$JAR" -o "$TMP/probe-$f.wav" -D "$TMP/probe-$f.hdr" "$BASE/hoerprobe.php?f=$f"
+   $DC cp "$TMP/probe-$f.wav" "telerix:/tmp/probe-$f.wav" >/dev/null 2>&1
+done
+check "Fassung 'Telefonnetz' als WAV mit 8 kHz" 'grep -qi "^content-type: audio/wav" "$TMP/probe-telefon.hdr" && in_tx "soxi -r /tmp/probe-telefon.wav" | grep -qx 8000'
+check "Fassung 'HD' als WAV mit 16 kHz" 'in_tx "soxi -r /tmp/probe-hd.wav" | grep -qx 16000'
+check "Hörprobe ohne Anmeldung nicht abrufbar" '[ "$(curl -s -o /dev/null -w "%{http_code}" "$BASE/hoerprobe.php?f=hd")" = 303 ]'
+
+echo "== Neuversuch nach Abbruch des Streams"
+# Der Teststream bricht jede Verbindung nach 8 s ab. Früher kam der Ton erst
+# nach gut 30 s wieder.
+set_stream "http://$STREAM_IP:8099/abbruch"
+in_tx "rm -f /tmp/abbruch.txt
+   su -s /bin/sh asterisk -c 'TELERIX_SKRIPTTEST=1 /usr/local/bin/telerix-stream | php84 /tmp/realtime.php 16000 20 /tmp/abbruch.raw > /tmp/abbruch.txt' 2>/dev/null &
+   for i in \$(seq 1 60); do [ -s /tmp/abbruch.txt ] && break; sleep 1; done
+   for p in /proc/[0-9]*; do grep -qz TELERIX_SKRIPTTEST=1 \$p/environ 2>/dev/null && kill -9 \${p#/proc/} 2>/dev/null; done; true"
+ABBRUCH="$(in_tx "cat /tmp/abbruch.txt")"
+info "Echtzeit-Leser: $ABBRUCH"
+check "Abbruch erkannt (Lücke im Ton)" 'grep -q "aussetzer=[1-9]" <<<"$ABBRUCH"'
+check "Ton nach höchstens 10 s wieder da" 'awk -v s="$ABBRUCH" "BEGIN {split(s, a, \"aussetzer_s=\"); exit !(a[2] + 0 <= 10)}"'
+
+echo "== Icecast-Status auf der Startseite (nachgebildetes AzuraCast)"
+set_icecast() { local t; t="$(token configuration.php)"; curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" --data-urlencode "icecast_status_url=$1" -d "icecast_panel=$2" "$BASE/set_icecast.php"; }
+startseite() { curl -s -b "$JAR" -c "$JAR" "$BASE/start.php"; }
+set_icecast "" 1
+set_stream "http://$STREAM_IP:8099/listen/gemeinde/live"
+s="$(startseite)"
+check "Status neben der Stream-Adresse gefunden (/listen/gemeinde/)" 'grep -q ">live</a>" <<<"$s" && grep -q "<td>7</td>" <<<"$s" && grep -q "<td>12</td>" <<<"$s"'
+check "Nur der eigene Mountpoint angezeigt" '! grep -q ">andere</a>" <<<"$s"'
+set_stream "http://$STREAM_IP:8099/live"
+s="$(startseite)"
+check "Ohne Status: Grund wird angezeigt (HTTP 404)" 'grep -q "Icecast-Status nicht abrufbar: Keine Icecast-Statusseite (HTTP 404)" <<<"$s"'
+set_icecast "http://$STREAM_IP:8099/listen/gemeinde" 1
+s="$(startseite)"
+check "Eigene Statusadresse (status-json.xsl ergänzt)" 'grep -q "<td>7</td>" <<<"$s" && curl -s -b "$JAR" "$BASE/configuration.php" | grep -q "/listen/gemeinde/status-json.xsl"'
+check "Mountpoint nicht zuzuordnen: alle angezeigt" 'grep -q ">andere</a>" <<<"$s" && grep -q "Alle Mountpoints des Servers" <<<"$s"'
+set_icecast "" 1
+t="$(token start.php)"
+curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d action=hide "$BASE/set_icecast.php"
+check "Ausgeblendet" '! startseite | grep -q "Internetradiostreams"'
+set_icecast "" 1
+check "Wieder eingeblendet" 'startseite | grep -q "Internetradiostreams"'
+
 echo "== Anruf (Ansage und Wartemusik)"
 START="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 call anruf1 45
@@ -186,8 +279,25 @@ curl -s -o /dev/null -b "$JAR" -c "$JAR" -F "csrf=$t" -F "ansage=@$(winpath "$TM
 call anruf2 10
 info "Anwendung: $CALL_APP"
 check "Hochgeladene Ansage wird gespielt" 'grep -q "Playback!/var/lib/telerix/sounds/ansage" <<<"$CALL_APP"'
+
+echo "== Ansage abgeschaltet"
+t="$(token ansage.php)"
+curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d action=disable "$BASE/ansage.php"
+call anruf2b 10
+info "Anwendung: $CALL_APP"
+check "Keine Ansage, obwohl eine eigene hochgeladen ist" '! grep -q "Playback" <<<"$CALL_APP"'
+check "Sofort Wartemusik (Stream)" '[ "$CALL_MOH" = 1 ]'
+t="$(token ansage.php)"
+curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d action=enable "$BASE/ansage.php"
 t="$(token ansage.php)"
 curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d action=delete "$BASE/ansage.php"
+
+echo "== Codec-Anzeige auf der Startseite"
+prov_cli "channel originate Local/anruf@provider application Wait 12" >/dev/null
+sleep 5
+check "Codec im Kanal vermerkt (Accountcode g722)" 'tx_cli "core show channels concise" | grep "^PJSIP/" | cut -d"!" -f9 | grep -q g722'
+check "Startseite zeigt HD (G.722)" 'curl -s -b "$JAR" -c "$JAR" "$BASE/start.php" | grep -q "HD (G.722)"'
+sleep 9
 
 echo "== Neustart des Containers"
 MARK="$(date -u +%Y-%m-%dT%H:%M:%SZ)"

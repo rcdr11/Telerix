@@ -6,11 +6,16 @@
 
 | Seite | Einstellung |
 | --- | --- |
-| Konfiguration → Internetstream | Adresse des Icecast-MP3-Streams, z. B. `http://www.beispiel.de:8000/gottesdienst`. Fehlt `http://`, wird es ergänzt. Die neue Adresse gilt nach wenigen Sekunden, laufende Anrufe bleiben bestehen. |
+| Konfiguration → Internetstream | Adresse des Icecast-MP3-Streams, z. B. `http://www.beispiel.de:8000/gottesdienst`. Fehlt `http://`, wird es ergänzt. Die neue Adresse gilt nach wenigen Sekunden, laufende Anrufe bleiben bestehen. Darunter: Icecast-Status auf der Startseite ein- oder ausblenden und bei Bedarf seine Adresse eintragen, siehe [Icecast-Status](#icecast-status-auf-der-startseite). |
 | Konfiguration → SIP-Konfiguration | SIP-ID, Passwort und Registrar des Anbieters. Wird ohne Neustart geladen. Das gespeicherte Passwort wird nicht wieder angezeigt, ein leeres Feld behält es bei. Alle Felder leeren schaltet die Registrierung ab. |
+| Konfiguration → Ton am Telefon | Lautstärke (0 bis +15 dB, Standard +5 ≈ −20 dBFS), Klangprofil (Sprache, Sprache und Musik, ohne Leveler), Hochpass (aus bis 250 Hz, Standard 180 Hz) und Vorlauf gegen Stockungen (0 bis 10 s, Standard 4). Gilt nach wenigen Sekunden, auch für laufende Anrufe. Die Hörprobe nimmt 20 s des Streams mit den gewählten Werten auf, ohne zu speichern. Siehe [Tonqualität](tonqualitaet.md). |
+| Konfiguration → Öffentliche Adresse | Öffentliche IPv4-Adresse oder Hostname für SIP/RTP, siehe [Kein Ton beim Anrufer](#kein-ton-beim-anrufer). Gilt nach einem Neustart von Asterisk. |
+| Konfiguration → Testtelefon | Testtelefon `testphone` mit Passwort (mind. 12 Zeichen aus `A-Z a-z 0-9 . _ + -`). Extension 100 spielt Piepton und Stream. |
 | Konfiguration → Zugangsdaten ändern | Benutzername und Passwort für das Webinterface |
-| Ansage | Eigene Begrüßungsansage hochladen (wav, mp3, ogg, flac bis 20 MB). Sie wird in 8 kHz Mono umgewandelt. Ohne eigene Ansage läuft `ansagen/willkommen-gottesdienst.gsm`. |
+| Konfiguration → Nur über .env einstellbar | zeigt die Werte, die bewusst nur über `.env` gehen (siehe unten) |
+| Ansage | Begrüßungsansage ein- und ausschalten. Eigene Ansage hochladen (wav, mp3, ogg, flac bis 20 MB), sie wird in 8 kHz Mono umgewandelt. Ohne eigene Ansage läuft `ansagen/willkommen-gottesdienst.gsm`. Abgeschaltet hören Anrufer gleich nach dem Annehmen den Stream. |
 | Nummerverwaltung | Liste „Name Nummer“ (txt/csv, max. 1 MB). Statt der Nummer wird dann der Name des Anrufers angezeigt. |
+| Startseite | Laufende Anrufer mit Codec (HD oder Telefonqualität), siehe [HD oder Telefonqualität?](tonqualitaet.md#hd-oder-telefonqualität) |
 | Sicherung | Konfiguration verschlüsselt herunterladen und wieder einspielen, siehe [Sicherung und Updates](sicherung-und-updates.md) |
 | Updates | Prüfen, ob es eine neue Version gibt |
 
@@ -27,18 +32,49 @@ Eingehende Anrufe des Anbieters landen wie im Original auf Extension 200.
 
 Beide Dateien werden nicht eingecheckt. Änderungen übernehmen mit `docker compose up -d`.
 
+**Nur über `.env`** gehen diese Einstellungen. Sie greifen in den Start des Containers ein, und ein falscher Wert
+ließe sich im Webinterface nicht mehr korrigieren:
+
 | Einstellung in `.env` | Bedeutung |
 | --- | --- |
 | `TELERIX_UPDATE_REPO` | GitHub-Repository für die Update-Prüfung, z. B. `rcdr11/Telerix`. Setzt `install.sh` automatisch. |
-| `TELERIX_EXTERNAL_ADDRESS` | Öffentliche IPv4-Adresse oder Hostname für SIP/RTP, siehe [Kein Ton beim Anrufer](#kein-ton-beim-anrufer) |
 | `TELERIX_TRUSTED_PROXIES` | Adresse(n) des Reverse-Proxys, siehe [Reverse-Proxy](#reverse-proxy-davor-setzen) |
 | `TELERIX_COOKIE_SECURE` | `1` hinter einem HTTPS-Proxy: Das Session-Cookie wird dann nur über HTTPS gesendet. |
-| `TELERIX_AUDIO_ANHEBUNG_DB` | Lautstärke am Telefon, 0 bis 15 dB (Standard 5 ≈ −20 dBFS), siehe [Tonqualität](tonqualitaet.md) |
-| `TELERIX_AUDIO_PUFFER_SEKUNDEN` | Vorlauf gegen Stockungen des Streams, 0 bis 10 s (Standard 4). Um diese Zeit kommt der Ton verzögert an. |
-| `TELERIX_TESTPHONE_PASSWORD` | Legt ein Testtelefon `testphone` an (mind. 12 Zeichen aus `A-Z a-z 0-9 . _ + -`). Extension 100 spielt Piepton und Stream. |
 
-Ungültige Werte bei `TELERIX_EXTERNAL_ADDRESS` und `TELERIX_TRUSTED_PROXIES` verhindern den Start. Die Meldung
-dazu zeigt `docker compose logs`.
+**Im Webinterface oder über `.env`** gehen diese. Ist die Variable in `.env` gesetzt, hat sie Vorrang: Das Feld im
+Webinterface ist dann gesperrt und zeigt den Wert aus `.env`. Wer lieber im Webinterface einstellt, löscht die
+Zeile aus `.env` und führt `docker compose up -d` aus.
+
+| Einstellung in `.env` | Im Webinterface | Bedeutung |
+| --- | --- | --- |
+| `TELERIX_AUDIO_ANHEBUNG_DB` | Ton am Telefon | Lautstärke am Telefon, 0 bis 15 dB (Standard 5 ≈ −20 dBFS), siehe [Tonqualität](tonqualitaet.md) |
+| `TELERIX_AUDIO_PUFFER_SEKUNDEN` | Ton am Telefon | Vorlauf gegen Stockungen des Streams, 0 bis 10 s (Standard 4). Um diese Zeit kommt der Ton verzögert an. |
+| `TELERIX_EXTERNAL_ADDRESS` | Öffentliche Adresse | Öffentliche IPv4-Adresse oder Hostname für SIP/RTP, siehe [Kein Ton beim Anrufer](#kein-ton-beim-anrufer) |
+| `TELERIX_TESTPHONE_PASSWORD` | Testtelefon | Legt ein Testtelefon `testphone` an (mind. 12 Zeichen aus `A-Z a-z 0-9 . _ + -`). Extension 100 spielt Piepton und Stream. |
+
+Ungültige Werte bei `TELERIX_EXTERNAL_ADDRESS`, `TELERIX_TESTPHONE_PASSWORD` und `TELERIX_TRUSTED_PROXIES`
+verhindern den Start, ungültige Tonwerte werden ignoriert. Die Meldung dazu zeigt `docker compose logs`.
+
+## Icecast-Status auf der Startseite
+
+Der Kasten *Internetradiostreams* zeigt, wie viele Zuhörer den Stream gerade im Internet hören. Telerix liest dazu
+die Statusseite `status-json.xsl` von Icecast (ab Version 2.4) und zeigt nur den eigenen Mountpoint, sofern er
+sich über den Pfad der Stream-Adresse zuordnen lässt. Telerix selbst zählt dabei als ein Zuhörer, denn die
+Wartemusik hält eine Verbindung offen. Das Ergebnis wird 30 Sekunden zwischengespeichert.
+
+Ohne eingetragene Statusadresse probiert Telerix nacheinander:
+
+1. das Verzeichnis der Stream-Adresse: aus `https://radio.example.org/listen/gemeinde/radio.mp3` wird
+   `https://radio.example.org/listen/gemeinde/status-json.xsl`. So ist es bei **AzuraCast**, das intern Icecast
+   verwendet und Stream und Status unter `/listen/<station>/` weiterreicht.
+2. die Wurzel des Servers: `https://radio.example.org/status-json.xsl`, wie bei einem Icecast, der direkt
+   erreichbar ist (z. B. `http://radio.example.org:8000/status-json.xsl`).
+
+Klappt beides nicht, zeigt die Startseite den Grund (z. B. HTTP 404 oder keine Antwort). Dann unter
+*Konfiguration → Internetstream* die Statusadresse selbst eintragen, z. B. `http://radio.example.org:8000`;
+`/status-json.xsl` wird ergänzt. Gibt es keinen Icecast-Status (z. B. bei Shoutcast oder einem Streaming-Dienst),
+lässt sich der Kasten auf der Startseite ausblenden. Wieder einblenden: Häkchen unter *Konfiguration →
+Internetstream*.
 
 ## Passwort vergessen
 
@@ -129,14 +165,15 @@ Prüfen: `docker compose logs telerix`. Die Zugriffszeilen müssen mit der IP de
 Läuft der Server hinter NAT (Router, Cloud-Firewall), schickt Asterisk seine interne Adresse mit. Der Anbieter
 weiß dann nicht, wohin er das Audio senden soll.
 
-1. In `.env` die öffentliche Adresse eintragen:
+1. Im Webinterface unter *Konfiguration → Öffentliche Adresse* die öffentliche Adresse eintragen, z. B.
+   `203.0.113.10`, und Asterisk neu starten (Knopf darunter). Alternativ in `.env`:
 
    ```sh
    TELERIX_EXTERNAL_ADDRESS=203.0.113.10
    ```
 
-   Ein Hostname (z. B. `sip.example.org`) geht auch. Er wird beim Start aufgelöst. Ändert sich die IP, Telerix
-   danach neu starten.
+   Ein Hostname (z. B. `sip.example.org`) geht auch. Er wird beim Start aufgelöst. Ändert sich die IP, Asterisk
+   bzw. Telerix danach neu starten.
 
 2. SIP- und RTP-Ports freigeben, in `docker-compose.override.yml`:
 
@@ -168,10 +205,10 @@ Alles Veränderliche liegt im Docker-Volume `telerix_telerix-data` (im Container
 
 | Verzeichnis | Inhalt |
 | --- | --- |
-| `config/` | Admin-Zugang (Passwort-Hash), SIP-Zugang |
+| `config/` | Admin-Zugang (Passwort-Hash), SIP-Zugang, Einstellungen aus dem Webinterface (`settings.json`) |
 | `state/` | Login-Sperren, Ergebnis der Update-Prüfung |
 | `uploads/` | hochgeladene Namenslisten und Ansage (zufällige Dateinamen) |
-| `asterisk/` | aus den Einstellungen erzeugte Asterisk-Dateien, Stream-Adresse |
+| `asterisk/` | aus den Einstellungen erzeugte Dateien für Asterisk und die Tonaufbereitung, Stream-Adresse |
 | `sounds/` | umgewandelte Ansage |
 
 `docker compose down` lässt das Volume bestehen. `docker compose down -v` löscht es mit allen Einstellungen.

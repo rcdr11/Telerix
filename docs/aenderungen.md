@@ -17,6 +17,8 @@ Ubuntu 18.04). Diese Fassung ist gemäß zlib-Lizenz als veränderte Version gek
 | `reboot.php`, `shutdown.php` fuhren den ganzen Rechner herunter | entfernt, ebenso der Neustart über systemctl. „Asterisk neu starten“ bleibt. |
 | Fest eingetragenes internes Telefon `6001` mit Passwort im Repository | entfernt. Optionales Testtelefon nur mit selbst gesetztem Passwort. |
 
+| PHP 8.4.26 und älter: CVE-2026-109618 und CVE-2026-109619 („PHP2Shell“, Speicherfehler in PHP selbst, Codeausführung ohne Anmeldung möglich) | ab 0.06-mod PHP 8.4.27. Zusätzlich ist `session.upload_progress` im PHP-FPM-Pool abgeschaltet (wird nicht gebraucht, empfohlene Gegenmaßnahme zu CVE-2026-109619). |
+
 Weitere Härtungen: Webroot getrennt von Bibliotheken; nginx führt nur existierende `.php` im Webroot aus;
 Sicherheitsheader (Content-Security-Policy ohne Inline-Skripte, `X-Frame-Options`, `nosniff`); keine externen
 CDNs; Ausgaben werden HTML-maskiert; `open_basedir`; Asterisk lädt nur die nötigen Module, AMI ist abgeschaltet;
@@ -41,6 +43,13 @@ der Container läuft mit `cap_drop: ALL` (plus den zum Start nötigen Fähigkeit
 - Aufbereitung des Streams für das Telefon (16 kHz, Leveler, Begrenzer, Puffer), siehe [Tonqualität](tonqualitaet.md)
 - Saubere Abmeldung beim SIP-Anbieter beim Stoppen des Containers (keine doppelten Anrufe nach einem Neustart)
 - Rückmeldungen (Erfolg/Fehler) nach jedem Speichern
+- Ab 0.06-mod: Lautstärke, Vorlauf, öffentliche Adresse und Testtelefon im Webinterface (`.env` hat Vorrang),
+  Begrüßungsansage abschaltbar, diese Einstellungen auch in der Sicherung
+- Ab 0.06-mod: Klangprofil und Hochpass einstellbar, Hörprobe im Browser (Telefonnetz und HD), Codec je Anrufer auf
+  der Startseite, Neuversuch nach 2 s statt 30 s, wenn der Stream abbricht
+- Ab 0.06-mod: Icecast-Status auf der Startseite mit Grund bei Fehlern, eigener Statusadresse, Erkennung von
+  AzuraCast, nur dem eigenen Mountpoint und Ausblenden; 30 s zwischengespeichert, damit die Startseite nicht bei
+  jedem Aufruf auf den Server wartet
 
 ## Bekannte Einschränkungen
 

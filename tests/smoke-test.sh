@@ -78,6 +78,20 @@ check "Ungültige Adresse abgelehnt" 'page configuration.php | grep -q "Ungülti
 curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" --data-urlencode 'inetstream=127.0.0.1:8099/test.mp3' "$BASE/set_stream.php"
 check "Adresse gespeichert (http:// ergänzt)" '[ "$(in_container "cat /var/lib/telerix/asterisk/stream.url")" = "http://127.0.0.1:8099/test.mp3" ]'
 
+echo "== Icecast-Status"
+in_container 'rm -f /var/lib/telerix/state/icecast_status.json'
+check "Server nicht erreichbar: Grund auf der Startseite" 'page start.php | grep -q "Icecast-Status nicht abrufbar: Server nicht erreichbar"'
+t="$(token configuration.php)"
+curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" --data-urlencode 'icecast_status_url=ftp://radio.example.org' -d icecast_panel=1 "$BASE/set_icecast.php"
+check "Ungültige Statusadresse abgelehnt" 'page configuration.php | grep -q "Icecast-Statusadresse: http:// oder https://"'
+curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" --data-urlencode 'icecast_status_url=radio.example.org:8000/' -d icecast_panel=1 "$BASE/set_icecast.php"
+check "Statusadresse vereinheitlicht" 'page configuration.php | grep -q "value=\"http://radio.example.org:8000/status-json.xsl\""'
+curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d icecast_status_url= "$BASE/set_icecast.php"
+check "Ohne Häkchen ausgeblendet" '! page start.php | grep -q "Internetradiostreams"'
+curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d icecast_status_url= -d icecast_panel=1 "$BASE/set_icecast.php"
+check "Wieder eingeblendet" 'page start.php | grep -q "Internetradiostreams"'
+check "Ausblenden ohne Token abgelehnt (403)" '[ "$(status -d action=hide "$BASE/set_icecast.php")" = 403 ]'
+
 echo "== SIP (PJSIP)"
 t="$(token configuration.php)"
 curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" --data-urlencode 'sip_id=4711 e0' --data-urlencode 'sip_pw=x' --data-urlencode 'sip_reg=192.0.2.10' "$BASE/set_sipconfig.php"
@@ -88,6 +102,46 @@ check "Passwort wird nicht ins Formular zurückgegeben" '! page configuration.ph
 check "Registrierung in Asterisk vorhanden" 'in_container "asterisk -rx \"pjsip show registrations\"" | grep -q "telerix-trunk-reg/sip:192.0.2.10"'
 check "Endpunkt in Asterisk vorhanden" 'in_container "asterisk -rx \"pjsip show endpoint telerix-trunk\"" | grep -q "Endpoint:  telerix-trunk"'
 check "Passwort mit ; korrekt übernommen" 'in_container "asterisk -rx \"pjsip show auth telerix-trunk-auth\"" | grep -q "password *: Geheim;123"'
+
+echo "== Einstellungen (Ton, öffentliche Adresse, Testtelefon)"
+aconf() { in_container "cat /var/lib/telerix/asterisk/audio.conf"; }
+t="$(token configuration.php)"
+check "Konfigurationsseite zeigt Toneinstellungen" 'page configuration.php | grep -q "name=\"audio_gain_db\""'
+curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d audio_gain_db=99 -d audio_buffer_s=4 "$BASE/set_audio.php"
+check "Ungültige Lautstärke abgelehnt" 'page configuration.php | grep -q "Lautstärke: erlaubt sind ganze Zahlen von 0 bis 15"'
+curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d audio_gain_db=8 -d audio_buffer_s=6 -d audio_profile=musik -d audio_highpass_hz=50 "$BASE/set_audio.php"
+check "Lautstärke und Vorlauf in audio.conf" 'aconf | grep -qx "ANHEBUNG_DB=8" && aconf | grep -qx "PUFFER_SEKUNDEN=6"'
+check "Klangprofil und Hochpass in audio.conf" 'aconf | grep -qx "PROFIL=musik" && aconf | grep -qx "HOCHPASS_HZ=50"'
+curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d audio_highpass_hz=100 "$BASE/set_audio.php"
+check "Ungültiger Hochpass abgelehnt" 'page configuration.php | grep -q "Hochpass: erlaubt sind 0, 50, 80, 120, 180, 250 Hz"'
+curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d audio_profile=laut "$BASE/set_audio.php"
+check "Ungültiges Klangprofil abgelehnt" 'page configuration.php | grep -q "Klangprofil: ungültige Auswahl"'
+curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d audio_gain_db=5 -d audio_profile=sprache -d audio_highpass_hz=180 "$BASE/hoerprobe.php"
+check "Hörprobe ohne erreichbaren Stream: Meldung" 'page configuration.php | grep -q "Der Stream liefert gerade keinen Ton"'
+check "Hörprobe ohne Token abgelehnt (403)" '[ "$(status -d audio_gain_db=5 "$BASE/hoerprobe.php")" = 403 ]'
+check "Unbekannte Hörprobe-Fassung: 404" '[ "$(status "$BASE/hoerprobe.php?f=../config/admin.json")" = 404 ]'
+check "Gewählte Lautstärke im Formular" 'page configuration.php | grep -q "value=\"8\" selected"'
+check "Ohne Token abgelehnt (403)" '[ "$(status -d audio_gain_db=3 "$BASE/set_audio.php")" = 403 ]'
+curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" --data-urlencode 'external_address=1.2.3.4;x' "$BASE/set_external.php"
+check "Ungültige öffentliche Adresse abgelehnt" 'page configuration.php | grep -q "Öffentliche Adresse: IPv4-Adresse oder Hostname"'
+curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d external_address=203.0.113.10 "$BASE/set_external.php"
+check "Öffentliche Adresse in pjsip_external.conf" 'in_container "cat /var/lib/telerix/asterisk/pjsip_external.conf" | grep -qx "external_media_address=203.0.113.10"'
+curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d testphone_enabled=1 -d testphone_pw=kurz "$BASE/set_testphone.php"
+check "Zu kurzes Testtelefon-Passwort abgelehnt" 'page configuration.php | grep -q "Testtelefon-Passwort: 12 bis 128 Zeichen"'
+curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d testphone_enabled=1 -d testphone_pw=TestTelefon12345 "$BASE/set_testphone.php"
+check "Testtelefon in Asterisk vorhanden" 'in_container "asterisk -rx \"pjsip show endpoint testphone\"" | grep -q "Endpoint:  testphone"'
+check "Testtelefon-Passwort nicht im Formular" '! page configuration.php | grep -q "TestTelefon12345"'
+curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d testphone_enabled=1 "$BASE/set_testphone.php"
+check "Leeres Passwortfeld behält das Passwort" 'in_container "asterisk -rx \"pjsip show auth testphone\"" | grep -q "password *: TestTelefon12345"'
+check "settings.json nur für telerix lesbar (600)" '[ "$(in_container "stat -c %a:%U /var/lib/telerix/config/settings.json")" = "600:telerix" ]'
+
+echo "== Begrüßungsansage an/aus"
+t="$(token ansage.php)"
+curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d action=disable "$BASE/ansage.php"
+check "Ansage abgeschaltet (Markierung für den Dialplan)" 'in_container "test -e /var/lib/telerix/asterisk/ansage_aus" && page ansage.php | grep -q "keine Ansage (abgeschaltet)"'
+check "Dialplan überspringt die Ansage" 'in_container "asterisk -rx \"dialplan show 200@sip-in\"" | grep -q "ansage_aus)}?stream"'
+curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d action=enable "$BASE/ansage.php"
+check "Ansage wieder eingeschaltet" '! in_container "test -e /var/lib/telerix/asterisk/ansage_aus" && page ansage.php | grep -q "Standardansage"'
 
 echo "== Uploads"
 printf '<?php system($_GET["c"]); ?>\n' > "$TMP/shell.php"
@@ -117,6 +171,12 @@ check "Liste angezeigt, HTML maskiert" 'page settings.php | grep -q "&lt;b&gt;Fe
 check "+49 normalisiert" 'page settings.php | grep -q "060112345"'
 
 echo "== Sicherung"
+# Alle Einstellungen aus dem Webinterface weichen hier vom Standard ab (Ton,
+# öffentliche Adresse und Testtelefon aus dem Abschnitt Einstellungen, dazu
+# der Icecast-Status); dieser Stand muss nach dem Einspielen exakt zurückkommen
+t="$(token configuration.php)"
+curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d icecast_status_url=http://radio.example.org:8000 "$BASE/set_icecast.php"
+in_container 'cp /var/lib/telerix/config/settings.json /tmp/settings-vorher.json'
 t="$(token backup.php)"
 curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d action=create -d backup_pw=kurz -d backup_pw2=kurz "$BASE/backup.php"
 check "Zu kurzes Backup-Passwort abgelehnt" 'page backup.php | grep -q "mindestens 10 Zeichen"'
@@ -127,6 +187,12 @@ check "Sicherung verschlüsselt (kein Klartext)" 'head -c 17 "$TMP/sicherung.tlx
 # Konfiguration ändern, dann Sicherung einspielen
 t="$(token configuration.php)"
 curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" --data-urlencode 'inetstream=http://anders.example/x' "$BASE/set_stream.php"
+curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d audio_gain_db=2 -d audio_buffer_s=1 -d audio_profile=aus -d audio_highpass_hz=0 "$BASE/set_audio.php"
+curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d icecast_status_url= -d icecast_panel=1 "$BASE/set_icecast.php"
+curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d external_address= "$BASE/set_external.php"
+curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" "$BASE/set_testphone.php"
+t="$(token ansage.php)"
+curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d action=disable "$BASE/ansage.php"
 t="$(token backup.php)"
 curl -s -o /dev/null -b "$JAR" -c "$JAR" -F "csrf=$t" -F action=restore -F restore_pw=FalschesPasswort -F "backup=@$TMP/sicherung.tlxbak" "$BASE/backup.php"
 check "Falsches Backup-Passwort abgelehnt" 'page backup.php | grep -q "Backup-Passwort falsch"'
@@ -140,6 +206,17 @@ check "Sicherung eingespielt" 'page backup.php | grep -q "Sicherung eingespielt"
 check "Stream-Adresse wiederhergestellt" '[ "$(in_container "cat /var/lib/telerix/asterisk/stream.url")" = "http://127.0.0.1:8099/test.mp3" ]'
 check "SIP-Zugang wiederhergestellt" 'in_container "asterisk -rx \"pjsip show auth telerix-trunk-auth\"" | grep -q "password *: Geheim;123"'
 check "Ansage und Nummernliste wiederhergestellt" 'page ansage.php | grep -q "eigene Ansage" && page settings.php | grep -q "Max Mustermann"'
+check "Einstellungen wiederhergestellt (Ton, Adresse, Ansage an)" 'aconf | grep -qx "ANHEBUNG_DB=8" && aconf | grep -qx "PROFIL=musik" && in_container "grep -q 203.0.113.10 /var/lib/telerix/asterisk/pjsip_external.conf" && ! in_container "test -e /var/lib/telerix/asterisk/ansage_aus"'
+check "Testtelefon wiederhergestellt" 'in_container "asterisk -rx \"pjsip show auth testphone\"" | grep -q "password *: TestTelefon12345"'
+check "Alle Einstellungen aus dem Webinterface wiederhergestellt (settings.json wie vorher)" 'in_container "cmp -s /tmp/settings-vorher.json /var/lib/telerix/config/settings.json"'
+check "Sicherung enthält jede Einstellung" 'in_container "php84 -r '"'"'require \"/opt/telerix/lib/backup.php\"; exit(array_keys(backup_collect()[\"settings\"]) === array_keys(SETTINGS) ? 0 : 1);'"'"'"'
+# Testwerte zurücksetzen
+t="$(token configuration.php)"
+curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d audio_gain_db=5 -d audio_buffer_s=4 -d audio_profile=sprache -d audio_highpass_hz=180 "$BASE/set_audio.php"
+curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d external_address= "$BASE/set_external.php"
+curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" "$BASE/set_testphone.php"
+curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d icecast_status_url= -d icecast_panel=1 "$BASE/set_icecast.php"
+check "Testtelefon abgeschaltet" '! in_container "asterisk -rx \"pjsip show endpoints\"" | grep -q "Endpoint:  testphone"'
 check "Nach dem Einspielen weiter angemeldet" 'page start.php | grep -q "Asterisk: l&auml;uft"'
 
 echo "== Updates"
@@ -182,6 +259,9 @@ check "Vom Webinterface geschriebene Dateien für Asterisk lesbar" '[ -z "$(in_c
 check "pjsip_external.conf vorhanden (640 telerix:asterisk)" '[ "$(in_container "stat -c %a:%U:%G /var/lib/telerix/asterisk/pjsip_external.conf")" = "640:telerix:asterisk" ]'
 check "Transport transport-udp geladen" 'in_container "asterisk -rx \"pjsip show transport transport-udp\"" | grep -q "external_media_address"'
 check "admin.json nur für telerix lesbar (600)" '[ "$(in_container "stat -c %a:%U /var/lib/telerix/config/admin.json")" = "600:telerix" ]'
+php_version() { in_container 'php84 -r "echo PHP_VERSION;"'; }
+check "PHP mit Fix für CVE-2026-109618/109619 (>= 8.4.27)" 'printf "%s\n" 8.4.27 "$(php_version)" | sort -V -C'
+check "session.upload_progress im FPM-Pool aus" 'in_container "php-fpm84 -tt 2>&1" | grep -q "session.upload_progress.enabled\] = 0"'
 check "PHP läuft als telerix" 'in_container "ps -o user,args" | grep "php-fpm: pool" | grep -q "^telerix"'
 check "Asterisk läuft als asterisk" 'in_container "ps -o user,args" | grep "asterisk -f" | grep -vq "^root"'
 

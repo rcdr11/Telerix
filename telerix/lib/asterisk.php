@@ -95,8 +95,10 @@ function asterisk_restart(): bool
 }
 
 /*
- * Aktive Anrufer: Liste der Anrufernummern aus "core show channels concise".
- * Format je Zeile: Kanal!Kontext!Extension!Prio!Status!App!Daten!CallerID!...
+ * Aktive Anrufer aus "core show channels concise": Liste von
+ * ['caller' => Anrufernummer, 'codec' => ausgehandelter Codec oder ''].
+ * Format je Zeile: Kanal!Kontext!Extension!Prio!Status!App!Daten!CallerID!
+ * Accountcode!... – den Codec trägt der Dialplan als Accountcode ein.
  */
 function asterisk_callers(): array
 {
@@ -110,7 +112,19 @@ function asterisk_callers(): array
       if (count($f) < 8 || !str_starts_with($f[0], 'PJSIP/')) {
          continue;
       }
-      $callers[] = $f[7];
+      $callers[] = ['caller' => $f[7], 'codec' => strtolower(trim($f[8] ?? '', '() '))];
    }
    return $callers;
+}
+
+/* Anzeige für einen Codec: [Text, HD ja/nein]. */
+function codec_label(string $codec): array
+{
+   return match ($codec) {
+      'g722'         => ['HD (G.722)', true],
+      'alaw', 'ulaw' => ['Telefonqualität (G.711)', false],
+      'gsm'          => ['GSM', false],
+      ''             => ['unbekannt', false],
+      default        => [$codec, false],
+   };
 }

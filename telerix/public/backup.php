@@ -31,6 +31,7 @@
                throw new BackupError('Die Sicherungsdatei ist zu groß.');
             }
             $values = backup_validate(backup_open(file_get_contents($f['tmp_name']), post_str('restore_pw')));
+            $addrBefore = settings_effective()['external_address'];
             backup_apply($values);
             /* Admin-Zugang kann sich geändert haben: Session darauf umstellen. */
             login_session($values['admin']['user']);
@@ -38,6 +39,12 @@
                flash('ok', 'Sicherung eingespielt. Es gelten jetzt die Zugangsdaten aus der Sicherung (Benutzer: ' . $values['admin']['user'] . ').');
             } else {
                flash('error', 'Sicherung eingespielt, Asterisk konnte die SIP-Konfiguration aber nicht neu laden.');
+            }
+            if (settings_effective()['external_address'] !== $addrBefore) {
+               flash('ok', 'Die öffentliche Adresse hat sich geändert. Sie gilt nach einem Neustart von Asterisk (Startseite).');
+            }
+            if ($values['settings'] === null) {
+               flash('ok', 'Die Sicherung stammt aus einer älteren Version und enthält keine Einstellungen (Ton, Ansage an/aus, öffentliche Adresse, Testtelefon). Diese bleiben unverändert.');
             }
          }
       } catch (BackupError | UploadError $e) {
@@ -55,8 +62,11 @@
   <h3 style="color: #ffffff">Sicherung erstellen</h3>
   <div class="container">
    <p style="color:#333">Die Sicherung enth&auml;lt Admin-Zugang, SIP-Zugang (mit Passwort), Stream-Adresse,
-      Nummernliste und die eigene Ansage. Sie wird mit dem hier gew&auml;hlten Passwort verschl&uuml;sselt.
-      <b>Ohne dieses Passwort l&auml;sst sie sich nicht wieder einspielen.</b></p>
+      Nummernliste, die eigene Ansage und die Einstellungen aus dem Webinterface (Ton, Ansage an/aus,
+      &ouml;ffentliche Adresse, Testtelefon mit Passwort, Icecast-Status). Sie wird mit dem hier gew&auml;hlten Passwort
+      verschl&uuml;sselt. <b>Ohne dieses Passwort l&auml;sst sie sich nicht wieder einspielen.</b></p>
+   <p class="hint">Nicht enthalten sind die Einstellungen aus der Datei .env und docker-compose.override.yml im
+      Telerix-Ordner. Diese Dateien bei Bedarf selbst sichern.</p>
    <form action="backup.php" method="POST">
     <?= csrf_field() ?>
     <input type="hidden" name="action" value="create">

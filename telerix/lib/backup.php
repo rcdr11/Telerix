@@ -3,9 +3,12 @@
  * Sicherung und Wiederherstellung der Konfiguration.
  *
  * Inhalt: Admin-Zugang (Benutzer + Passwort-Hash), SIP-Zugang, Stream-
- * Adresse, Nummernliste und die eigene Ansage (bereits umgewandelt).
- * Nicht enthalten: das Original der Ansage, Login-Sperren, Testtelefon
- * (kommt aus der Umgebungsvariable).
+ * Adresse, Nummernliste, die eigene Ansage (bereits umgewandelt) und ab
+ * Format 2 die Einstellungen aus dem Webinterface (lib/settings.php: Ton,
+ * Ansage an/aus, öffentliche Adresse, Testtelefon).
+ * Nicht enthalten: das Original der Ansage, Login-Sperren und alles aus
+ * .env – gesichert werden die im Webinterface gespeicherten Werte, auch
+ * wenn gerade eine Umgebungsvariable Vorrang hat.
  *
  * Die Daten werden als JSON zusammengestellt und mit einem eigenen
  * Backup-Passwort verschlüsselt (libsodium: Argon2id zur Schlüssel-
@@ -22,9 +25,12 @@ require_once __DIR__ . '/sip.php';
 require_once __DIR__ . '/stream.php';
 require_once __DIR__ . '/numbers.php';
 require_once __DIR__ . '/audio.php';
+require_once __DIR__ . '/settings.php';
 
 const BACKUP_MAGIC = "TELERIX-BACKUP-1\n";
-const BACKUP_FORMAT_VERSION = 1;
+const BACKUP_FORMAT_VERSION = 2;
+/* Format 1 (bis 0.05-mod) hat noch keine Einstellungen. */
+const BACKUP_FORMAT_READABLE = [1, 2];
 const BACKUP_MAX_BYTES = 20 * 1024 * 1024;
 const BACKUP_PASSWORD_MIN_LENGTH = 10;
 
@@ -58,6 +64,7 @@ function backup_collect(): array
       'stream'          => stream_load(),
       'numbers'         => numbers_all(),
       'announcement'    => $wav === false ? null : base64_encode($wav),
+      'settings'        => settings_stored(),
    ];
 }
 
@@ -98,7 +105,7 @@ function backup_open(string $blob, string $password): array
    if (!is_array($data) || ($data['format'] ?? '') !== 'telerix-backup') {
       throw new BackupError('Die Sicherungsdatei hat ein unbekanntes Format.');
    }
-   if (($data['version'] ?? 0) !== BACKUP_FORMAT_VERSION) {
+   if (!in_array($data['version'] ?? 0, BACKUP_FORMAT_READABLE, true)) {
       throw new BackupError('Die Sicherung stammt aus einer nicht unterstützten Telerix-Version.');
    }
    return $data;
@@ -153,7 +160,24 @@ function backup_validate(array $d): array
       }
    }
 
-   return ['admin' => $admin, 'sip' => $sip, 'stream' => $stream, 'numbers' => $numbers, 'announcement' => $wav];
+   /* null = Sicherung ohne Einstellungen (Format 1), die aktuellen bleiben. */
+   $settings = null;
+   if ($d['version'] >= 2) {
+      if (!is_array($d['settings'] ?? null)) {
+         throw new BackupError('Die Einstellungen in der Sicherung sind ungültig.');
+      }
+      $settings = [];
+      foreach (SETTINGS as $key => $def) {
+         try {
+            $settings[$key] = array_key_exists($key, $d['settings']) ? setting_check($key, $d['settings'][$key]) : $def['default'];
+         } catch (SettingsError $e) {
+            throw new BackupError('Einstellungen in der Sicherung: ' . $e->getMessage());
+         }
+      }
+   }
+
+   return ['admin' => $admin, 'sip' => $sip, 'stream' => $stream, 'numbers' => $numbers, 'announcement' => $wav,
+      'settings' => $settings];
 }
 
 /* Geprüfte Werte übernehmen. Die Ansage wird wie beim Upload neu umgewandelt. */
@@ -191,5 +215,9 @@ function backup_apply(array $v): void
    if ($v['numbers']) {
       $lines = array_map(fn($e) => $e['number'] . "\t" . $e['name'], $v['numbers']);
       atomic_write(numbers_dir() . '/' . bin2hex(random_bytes(16)) . '.txt', implode("\n", $lines) . "\n", 0600);
+   }
+
+   if ($v['settings'] !== null) {
+      settings_save($v['settings']);
    }
 }

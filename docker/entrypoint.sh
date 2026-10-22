@@ -28,75 +28,20 @@ install -d -o asterisk -g asterisk -m 0755 /run/asterisk
 install -d -o root -g root -m 0755 /run/php-fpm
 
 # Von pjsip.conf/musiconhold eingebundene Dateien müssen existieren
-for f in pjsip_trunk.conf pjsip_testphone.conf stream.url; do
+for f in pjsip_trunk.conf stream.url; do
    if [ ! -e "$D/asterisk/$f" ]; then
       : > "$D/asterisk/$f"
-      chown telerix:asterisk "$D/asterisk/$f"
-      chmod 0640 "$D/asterisk/$f"
    fi
 done
 
-# Optionales Testtelefon (Benutzer "testphone", Kontext from-internal,
-# Extension 100). Ohne Passwort wird kein Endpunkt angelegt.
-tp="$D/asterisk/pjsip_testphone.conf"
-pw="${TELERIX_TESTPHONE_PASSWORD:-}"
-if [ -n "$pw" ]; then
-   if [ "${#pw}" -lt 12 ] || ! printf '%s' "$pw" | grep -Eq '^[A-Za-z0-9._+-]+$'; then
-      echo "telerix: TELERIX_TESTPHONE_PASSWORD muss mind. 12 Zeichen aus A-Z, a-z, 0-9, . _ + - haben." >&2
-      exit 1
-   fi
-   cat > "$tp" <<EOF
-; Automatisch erzeugt aus TELERIX_TESTPHONE_PASSWORD
-[testphone]
-type=auth
-auth_type=userpass
-username=testphone
-password=$pw
-
-[testphone]
-type=aor
-max_contacts=1
-
-[testphone]
-type=endpoint
-transport=transport-udp
-context=from-internal
-disallow=all
-allow=g722,alaw,ulaw,gsm
-auth=testphone
-aors=testphone
-direct_media=no
-rtp_symmetric=yes
-force_rport=yes
-rewrite_contact=yes
-EOF
-else
-   echo "; Kein Testtelefon (TELERIX_TESTPHONE_PASSWORD nicht gesetzt)" > "$tp"
-fi
-chown telerix:asterisk "$tp"
-chmod 0640 "$tp"
-
-# SIP-Registrierung aus den gespeicherten Daten neu erzeugen, damit
-# Änderungen an der Vorlage nach einem Update wirksam werden
-php84 /opt/telerix/bin/render-sip.php
-chown telerix:asterisk "$D/asterisk/pjsip_trunk.conf"
-chmod 0640 "$D/asterisk/pjsip_trunk.conf"
-
-# Öffentliche Adresse für SIP/RTP (wird in [transport-udp] eingebunden)
-ext="$D/asterisk/pjsip_external.conf"
-if [ -n "${TELERIX_EXTERNAL_ADDRESS:-}" ]; then
-   addr="$(php84 /opt/telerix/bin/check-address.php external "$TELERIX_EXTERNAL_ADDRESS")" || exit 1
-   cat > "$ext" <<EOF
-; Automatisch erzeugt aus TELERIX_EXTERNAL_ADDRESS
-external_media_address=$addr
-external_signaling_address=$addr
-EOF
-   echo "telerix: Öffentliche Adresse für SIP/RTP: $addr"
-else
-   echo "; Keine öffentliche Adresse (TELERIX_EXTERNAL_ADDRESS nicht gesetzt)" > "$ext"
-fi
-chown telerix:asterisk "$ext"
-chmod 0640 "$ext"
+# Von Asterisk gelesene Dateien neu erzeugen: SIP-Registrierung aus den
+# gespeicherten Daten, Ton, Ansage an/aus, öffentliche Adresse für SIP/RTP
+# und Testtelefon aus den Einstellungen des Webinterface bzw. aus .env
+# (Vorrang). So werden Änderungen an den Vorlagen nach einem Update und
+# Änderungen an .env nach "docker compose up -d" wirksam. Ungültige Werte
+# für die öffentliche Adresse oder das Testtelefon verhindern den Start.
+php84 /opt/telerix/bin/render-config.php || exit 1
+find "$D/asterisk" -type f -exec chown telerix:asterisk {} + -exec chmod 0640 {} +
 
 # Reverse-Proxy: X-Forwarded-For nur von den eingetragenen Adressen auswerten
 # (nginx realip). Leer = Header wird ignoriert, REMOTE_ADDR bleibt der

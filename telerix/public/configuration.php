@@ -8,7 +8,7 @@
   <div class="w3-content" style="max-width:980px"><!-- Wrapper start -->
 
  <!-- Internetstream Konfiguration Panel Begin-->
- <div class="w3-panel w3-card-4 w3-blue">
+ <div class="w3-panel w3-card-4 w3-blue" id="stream">
   <h3 style="color: #ffffff">Internetstream:</h3>
 
   <?php
@@ -32,6 +32,30 @@
  </div>
   <!-- SIP - Konfiguration End-->
 
+ <div class="w3-panel w3-card-4 w3-blue" id="ton">
+  <h3 style="color: #ffffff">Ton am Telefon:</h3>
+  <?php
+  include(__DIR__ . '/../lib/panels/audioconfig.php');
+  ?>
+  <br />
+ </div>
+
+ <div class="w3-panel w3-card-4 w3-blue">
+  <h3 style="color: #ffffff">&Ouml;ffentliche Adresse (Server hinter NAT):</h3>
+  <?php
+  include(__DIR__ . '/../lib/panels/networkconfig.php');
+  ?>
+  <br />
+ </div>
+
+ <div class="w3-panel w3-card-4 w3-blue">
+  <h3 style="color: #ffffff">Testtelefon:</h3>
+  <?php
+  include(__DIR__ . '/../lib/panels/testphoneconfig.php');
+  ?>
+  <br />
+ </div>
+
   <!-- Zugangsdaten - Konfiguration Begin-->
   <div class="w3-panel w3-card-4 w3-blue">
   <h3 style="color: #ffffff">Zugangsdaten &auml;ndern:</h3>
@@ -44,6 +68,12 @@
   </div>
   <!-- Zugangsdaten - Konfiguration End-->
 
+ <div class="w3-panel w3-card-4 w3-blue">
+  <h3 style="color: #ffffff">Nur &uuml;ber .env einstellbar:</h3>
+  <?php
+  include(__DIR__ . '/../lib/panels/envinfo.php');
+  ?>
+ </div>
 
 
  </div> 

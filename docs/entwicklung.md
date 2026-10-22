@@ -17,8 +17,8 @@ Browser ──HTTP (127.0.0.1:8080)──> nginx ──> PHP-FPM (Benutzer teler
 | Pfad | Inhalt |
 | --- | --- |
 | `telerix/public/` | Webroot: die direkt aufrufbaren Seiten, CSS, JavaScript |
-| `telerix/lib/` | Login, Session, CSRF, Asterisk-Steuerung, SIP, Stream, Uploads, Sicherung, Layout (nicht per URL erreichbar) |
-| `telerix/bin/` | Hilfsskripte für den Containerstart (Admin-Zugang, Adressprüfung) |
+| `telerix/lib/` | Login, Session, CSRF, Asterisk-Steuerung, SIP, Stream, Einstellungen, Uploads, Sicherung, Layout (nicht per URL erreichbar) |
+| `telerix/bin/` | Hilfsskripte für den Containerstart (Admin-Zugang, erzeugte Asterisk-Dateien, Adressprüfung) |
 | `asterisk/` | Asterisk-Konfiguration und `stream.sh` |
 | `ansagen/` | mitgelieferte Begrüßungsansage |
 | `docker/` | nginx-, PHP-FPM- und supervisord-Konfiguration, Entrypoint |
@@ -31,7 +31,7 @@ Im Container laufen unter supervisord: Asterisk (als `asterisk`), PHP-FPM (als `
 
 - Basis-Image per Tag und Digest festgelegt:
   `alpine:3.24.2@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6`
-- Alle Pakete sind auf exakte Versionen gepinnt (u. a. Asterisk `22.9.0-r0`, PHP `8.4.26-r0`, nginx `1.30.4-r1`).
+- Alle Pakete sind auf exakte Versionen gepinnt (u. a. Asterisk `22.9.0-r0`, PHP `8.4.27-r0`, nginx `1.30.4-r1`).
   Asterisk 22 ist die aktuelle LTS-Linie (Sicherheitsupdates bis voraussichtlich 2029).
 - Alpine hält in einem Release-Zweig nur die neueste Paketrevision vor. Wird ein Paket aktualisiert, **schlägt der
   Build fehl**, statt still eine andere Version einzubauen. Dann die Versionen im `Dockerfile` anpassen.
