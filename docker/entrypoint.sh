@@ -40,8 +40,11 @@ done
 # (Vorrang). So werden Änderungen an den Vorlagen nach einem Update und
 # Änderungen an .env nach "docker compose up -d" wirksam. Ungültige Werte
 # für die öffentliche Adresse oder das Testtelefon verhindern den Start.
+# Die eigene Begrüßungsansage wird dabei mit den Toneinstellungen neu
+# erzeugt, wenn nötig (lib/audio.php).
 php84 /opt/telerix/bin/render-config.php || exit 1
-find "$D/asterisk" -type f -exec chown telerix:asterisk {} + -exec chmod 0640 {} +
+find "$D/asterisk" "$D/sounds" -type f -exec chown telerix:asterisk {} + -exec chmod 0640 {} +
+chown -R telerix:telerix "$D/uploads" "$D/state"
 
 # Reverse-Proxy: X-Forwarded-For nur von den eingetragenen Adressen auswerten
 # (nginx realip). Leer = Header wird ignoriert, REMOTE_ADDR bleibt der

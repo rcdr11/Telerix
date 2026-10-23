@@ -3,12 +3,16 @@
  * Sicherung und Wiederherstellung der Konfiguration.
  *
  * Inhalt: Admin-Zugang (Benutzer + Passwort-Hash), SIP-Zugang, Stream-
- * Adresse, Nummernliste, die eigene Ansage (bereits umgewandelt) und ab
- * Format 2 die Einstellungen aus dem Webinterface (lib/settings.php: Ton,
- * Ansage an/aus, öffentliche Adresse, Testtelefon).
- * Nicht enthalten: das Original der Ansage, Login-Sperren und alles aus
- * .env – gesichert werden die im Webinterface gespeicherten Werte, auch
- * wenn gerade eine Umgebungsvariable Vorrang hat.
+ * Adresse, Nummernliste, die eigene Ansage und ab Format 2 die
+ * Einstellungen aus dem Webinterface (lib/settings.php: Ton, Codec, Ansage
+ * an/aus, öffentliche Adresse, Testtelefon).
+ * Die Ansage ist ab 0.06-mod die unbearbeitete Quelle (WAV, Mono, 16 kHz,
+ * lib/audio.php), aus der beim Einspielen mit den Toneinstellungen neu
+ * erzeugt wird; bis 0.05-mod war es die fertige 8-kHz-Ansage. Beides ist
+ * WAV, deshalb bleibt das Format gleich. Nicht enthalten: das hochgeladene
+ * Original (MP3 usw.), Login-Sperren und alles aus .env – gesichert werden
+ * die im Webinterface gespeicherten Werte, auch wenn gerade eine
+ * Umgebungsvariable Vorrang hat.
  *
  * Die Daten werden als JSON zusammengestellt und mit einem eigenen
  * Backup-Passwort verschlüsselt (libsodium: Argon2id zur Schlüssel-
@@ -31,7 +35,9 @@ const BACKUP_MAGIC = "TELERIX-BACKUP-1\n";
 const BACKUP_FORMAT_VERSION = 2;
 /* Format 1 (bis 0.05-mod) hat noch keine Einstellungen. */
 const BACKUP_FORMAT_READABLE = [1, 2];
-const BACKUP_MAX_BYTES = 20 * 1024 * 1024;
+/* Ansage bis 10 min in 16 kHz (19,2 MB, als Base64 25,6 MB) plus Rest;
+   passt zu client_max_body_size (nginx) und post_max_size (PHP-FPM). */
+const BACKUP_MAX_BYTES = 32 * 1024 * 1024;
 const BACKUP_PASSWORD_MIN_LENGTH = 10;
 
 /* Fehler mit einer Meldung, die dem Benutzer angezeigt werden darf. */
@@ -53,7 +59,7 @@ function backup_key(string $password, string $salt): string
 function backup_collect(): array
 {
    $admin = admin_load();
-   $wav = announcement_exists() ? file_get_contents(announcement_file()) : false;
+   $wav = announcement_backup_data();
    return [
       'format'          => 'telerix-backup',
       'version'         => BACKUP_FORMAT_VERSION,
@@ -63,7 +69,7 @@ function backup_collect(): array
       'sip'             => sip_load(),
       'stream'          => stream_load(),
       'numbers'         => numbers_all(),
-      'announcement'    => $wav === false ? null : base64_encode($wav),
+      'announcement'    => $wav === null ? null : base64_encode($wav),
       'settings'        => settings_stored(),
    ];
 }
@@ -180,26 +186,14 @@ function backup_validate(array $d): array
       'settings' => $settings];
 }
 
-/* Geprüfte Werte übernehmen. Die Ansage wird wie beim Upload neu umgewandelt. */
+/* Geprüfte Werte übernehmen. Die Ansage wird wie beim Upload neu erzeugt,
+   mit den Toneinstellungen aus der Sicherung (settings_save am Ende). */
 function backup_apply(array $v): void
 {
    if ($v['announcement'] !== null) {
-      $src = data_path('sounds/.restore-' . bin2hex(random_bytes(8)) . '.wav');
-      $tmp = data_path('sounds/.ansage-' . bin2hex(random_bytes(8)) . '.wav');
-      atomic_write($src, $v['announcement'], 0600);
-      [$code] = run_command([
-         'sox', '--no-show-progress', '-t', 'wav', $src,
-         '-r', '8000', '-c', '1', '-b', '16', '-e', 'signed-integer', '-t', 'wav', $tmp,
-         'trim', '0', (string)AUDIO_MAX_SECONDS,
-      ], 120);
-      @unlink($src);
-      if ($code !== 0 || !is_file($tmp)) {
-         @unlink($tmp);
+      if (!announcement_restore($v['announcement'])) {
          throw new BackupError('Die Ansage aus der Sicherung konnte nicht gelesen werden.');
       }
-      chmod($tmp, 0640);
-      announcement_delete();
-      rename($tmp, announcement_file());
    } else {
       announcement_delete();
    }

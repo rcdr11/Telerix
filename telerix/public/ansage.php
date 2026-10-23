@@ -48,8 +48,13 @@
       : 'Anrufer hören gleich nach dem Annehmen den Stream.' ?></p>
    <h5>Eigene Ansage</h5>
    <p class="hint">Erlaubt sind <?= h(implode(', ', array_keys(AUDIO_ALLOWED))) ?> bis
-      <?= AUDIO_MAX_BYTES / 1024 / 1024 ?> MB. Die Datei wird f&uuml;r das Telefon in 8 kHz Mono umgewandelt
-      und nach <?= AUDIO_MAX_SECONDS / 60 ?> Minuten abgeschnitten.</p>
+      <?= AUDIO_MAX_BYTES / 1024 / 1024 ?> MB, nach <?= AUDIO_MAX_SECONDS / 60 ?> Minuten wird abgeschnitten.
+      Telerix wandelt die Datei in Mono um, in 16 kHz f&uuml;r HD-Anrufer und 8 kHz f&uuml;r alle anderen (eine
+      Aufnahme mit weniger als 16 kHz nur in 8 kHz). Wie beim Stream gelten Hochpass und Pr&auml;senz aus
+      <i>Konfiguration &rarr; Ton am Telefon</i>; dazu wird die Ansage auf einen festen Sprachpegel gebracht, damit
+      sie etwa so laut ankommt wie die Predigt im Stream. &Auml;ndern sich diese Einstellungen, erzeugt Telerix die
+      Ansage aus der hochgeladenen Datei neu. Am besten eine Aufnahme mit 44,1 oder 48 kHz hochladen, ohne Musik
+      oder Hall darunter.</p>
    <form enctype="multipart/form-data" action="ansage.php" method="post">
      <?= csrf_field() ?>
      <input type="file" name="ansage" accept=".wav,.mp3,.ogg,.flac,audio/*" class="w3-button w3-blue" required>

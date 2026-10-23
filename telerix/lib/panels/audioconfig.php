@@ -18,7 +18,7 @@
       <label><input type="checkbox" id="audio_processing" name="audio_processing" value="1"<?= $cur['audio_processing'] ? ' checked' : '' ?>>
          an (Standard)</label>
       <p class="hint">Ohne H&auml;kchen reicht Telerix den Stream ganz unbearbeitet weiter, nur in Mono und 16 kHz, wie
-         es das Telefon braucht. Die Einstellungen darunter
+         es das Telefon braucht; auch die eigene Ansage wird dann nur umgewandelt. Die Einstellungen darunter
          (au&szlig;er Vorlauf) bleiben gespeichert, gelten aber erst wieder mit H&auml;kchen.</p>
     </div>
   </div>
@@ -139,7 +139,7 @@
     <li><b>Vorlauf:</b> Puffer gegen Stockungen des Streams, um diese Zeit kommt der Ton verz&ouml;gert an.</li>
   </ul>
   <p class="hint">Gespeicherte &Auml;nderungen gelten nach wenigen Sekunden, auch f&uuml;r laufende Anrufe (dabei
-     kurz kein Ton). Die
+     kurz kein Ton); die eigene Begr&uuml;&szlig;ungsansage wird dabei mit Hochpass und Pr&auml;senz neu erzeugt. Die
      H&ouml;rprobe nimmt 20 Sekunden des Streams mit den gew&auml;hlten Werten auf, ohne sie zu speichern, und
      dauert etwa so lange.</p>
   <div class="row">

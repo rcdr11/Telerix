@@ -270,10 +270,12 @@ function settings_testphone_conf_file(): string
  * Erzeugt alle Dateien aus den geltenden Werten. Danach gilt:
  * Ton und Ansage sofort, Testtelefon nach asterisk_reload_pjsip(),
  * öffentliche Adresse erst nach einem Neustart von Asterisk (Transporte
- * lädt PJSIP nicht neu).
+ * lädt PJSIP nicht neu). Die eigene Begrüßungsansage
+ * wird mit den Toneinstellungen neu erzeugt (lib/audio.php).
  */
 function settings_render(): void
 {
+   require_once __DIR__ . '/audio.php';
    $e = settings_effective();
 
    /* 0640, Gruppe "asterisk" kommt vom setgid-Verzeichnis. */
@@ -302,6 +304,7 @@ function settings_render(): void
 
    atomic_write(settings_testphone_conf_file(), testphone_render($e['testphone_password']), 0640);
 
+   announcement_render();
 }
 
 /* Testtelefon "testphone" im Kontext from-internal (Extension 100). */
