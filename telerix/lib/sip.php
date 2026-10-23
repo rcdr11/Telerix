@@ -116,7 +116,10 @@ type=endpoint
 transport=transport-udp
 context=sip-in
 disallow=all
-{$codecs}outbound_auth=telerix-trunk-auth
+{$codecs}; Sprachpakete als Expressdienst markieren (DSCP EF), damit Router wie
+; die FritzBox sie bevorzugen können
+tos_audio=ef
+outbound_auth=telerix-trunk-auth
 aors=telerix-trunk
 from_user={$user}
 from_domain={$host}

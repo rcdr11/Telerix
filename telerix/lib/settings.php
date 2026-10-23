@@ -345,6 +345,7 @@ transport=transport-udp
 context=from-internal
 disallow=all
 allow=g722,alaw,ulaw,gsm
+tos_audio=ef
 auth=testphone
 aors=testphone
 direct_media=no
