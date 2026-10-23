@@ -2,9 +2,10 @@
 /*
  * Einstellungen, die früher nur über Umgebungsvariablen (.env) gingen und
  * jetzt im Webinterface gesetzt werden: Tonaufbereitung (dazu neu
- * Hauptschalter, Eingangspegel, Klangprofil, Hochpass und Präsenz),
- * Begrüßungsansage an/aus, öffentliche Adresse für SIP/RTP und
- * Testtelefon; außerdem die Anzeige des Icecast-Status auf der Startseite.
+ * Hauptschalter, Eingangspegel, Klangprofil, Hochpass, Präsenz und der
+ * bevorzugte Codec), Begrüßungsansage an/aus, öffentliche Adresse für
+ * SIP/RTP und Testtelefon; außerdem die Anzeige des Icecast-Status auf der
+ * Startseite.
  *
  * Gespeichert in TELERIX_DATA/config/settings.json (nur für "telerix"
  * lesbar). settings_render() erzeugt daraus die Dateien, die Asterisk und
@@ -40,6 +41,11 @@ const AUDIO_PROFILES = [
    'sprache' => 'Sprache',
    'musik'   => 'Sprache und Musik',
 ];
+/* Bevorzugter Codec gegenüber dem SIP-Anbieter (lib/sip.php) */
+const AUDIO_CODECS = [
+   'hd'      => 'HD bevorzugen (G.722)',
+   'telefon' => 'Telefonqualität bevorzugen (G.711)',
+];
 
 /* Einstellung => Umgebungsvariable (null = nur im Webinterface) und Standardwert.
    Standard für den Ton: Aufbereitung an, aber Eingangspegel, Anhebung,
@@ -54,6 +60,7 @@ const SETTINGS = [
    'audio_profile'      => ['env' => null,                            'default' => 'aus'],
    'audio_highpass_hz'  => ['env' => null,                            'default' => 0],
    'audio_presence_db'  => ['env' => null,                            'default' => 0],
+   'audio_codec'        => ['env' => null,                            'default' => 'hd'],
    'announcement'       => ['env' => null,                            'default' => true],
    'external_address'   => ['env' => 'TELERIX_EXTERNAL_ADDRESS',      'default' => ''],
    'testphone_password' => ['env' => 'TELERIX_TESTPHONE_PASSWORD',    'default' => ''],
@@ -119,6 +126,11 @@ function setting_check(string $key, mixed $v): mixed
          }
          if (!in_array($v, AUDIO_PRESENCE_CHOICES, true)) {
             throw new SettingsError('Sprachverständlichkeit: erlaubt sind ' . implode(', ', AUDIO_PRESENCE_CHOICES) . ' dB.');
+         }
+         return $v;
+      case 'audio_codec':
+         if (!is_string($v) || !isset(AUDIO_CODECS[$v])) {
+            throw new SettingsError('Codec: ungültige Auswahl.');
          }
          return $v;
       case 'announcement':
@@ -268,13 +280,14 @@ function settings_testphone_conf_file(): string
 
 /*
  * Erzeugt alle Dateien aus den geltenden Werten. Danach gilt:
- * Ton und Ansage sofort, Testtelefon nach asterisk_reload_pjsip(),
- * öffentliche Adresse erst nach einem Neustart von Asterisk (Transporte
- * lädt PJSIP nicht neu). Die eigene Begrüßungsansage
+ * Ton und Ansage sofort, Testtelefon und bevorzugter Codec (Trunk) nach
+ * asterisk_reload_pjsip(), öffentliche Adresse erst nach einem Neustart von
+ * Asterisk (Transporte lädt PJSIP nicht neu). Die eigene Begrüßungsansage
  * wird mit den Toneinstellungen neu erzeugt (lib/audio.php).
  */
 function settings_render(): void
 {
+   require_once __DIR__ . '/sip.php';
    require_once __DIR__ . '/audio.php';
    $e = settings_effective();
 
@@ -304,6 +317,7 @@ function settings_render(): void
 
    atomic_write(settings_testphone_conf_file(), testphone_render($e['testphone_password']), 0640);
 
+   sip_write_trunk();
    announcement_render();
 }
 

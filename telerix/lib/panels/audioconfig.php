@@ -19,7 +19,7 @@
          an (Standard)</label>
       <p class="hint">Ohne H&auml;kchen reicht Telerix den Stream ganz unbearbeitet weiter, nur in Mono und 16 kHz, wie
          es das Telefon braucht; auch die eigene Ansage wird dann nur umgewandelt. Die Einstellungen darunter
-         (au&szlig;er Vorlauf) bleiben gespeichert, gelten aber erst wieder mit H&auml;kchen.</p>
+         (au&szlig;er Vorlauf und Codec) bleiben gespeichert, gelten aber erst wieder mit H&auml;kchen.</p>
     </div>
   </div>
   <div class="row">
@@ -94,6 +94,18 @@
 <?php endif; ?>
     </div>
   </div>
+  <div class="row">
+    <div class="col-25">
+      <label for="audio_codec">Codec</label>
+    </div>
+    <div class="col-75">
+      <select id="audio_codec" name="audio_codec">
+<?php foreach (AUDIO_CODECS as $key => $label): ?>
+        <option value="<?= h($key) ?>"<?= $key === $cur['audio_codec'] ? ' selected' : '' ?>><?= h($label) ?><?= $std('audio_codec', $key) ?></option>
+<?php endforeach; ?>
+      </select>
+    </div>
+  </div>
 
   <!-- Bewusst abgesetzt vom Lautstärke-Regler: nur für zu laute Streams -->
   <fieldset class="nur-bei-bedarf">
@@ -137,6 +149,11 @@
        es. Lauter ist am Telefon nicht besser; lieber mit der H&ouml;rprobe pr&uuml;fen als nach Gef&uuml;hl
        anheben. F&uuml;r einen leisen Stream (etwa -26 dBFS) sind +5 dB ein guter Wert.</li>
     <li><b>Vorlauf:</b> Puffer gegen Stockungen des Streams, um diese Zeit kommt der Ton verz&ouml;gert an.</li>
+    <li><b>Codec:</b> Bei sipgate kommen die meisten Anrufe aus Festnetz und Mobilfunk ohnehin nur in
+       Telefonqualit&auml;t (G.711) an, auch wenn die Startseite &bdquo;HD&ldquo; zeigt: sipgate rechnet dann
+       selbst von G.722 auf G.711 um. &bdquo;Telefonqualit&auml;t bevorzugen&ldquo; spart diese zus&auml;tzliche
+       Umrechnung. Anrufer, bei denen HD wirklich bis zum Telefon durchkommt (meist nur aus dem sipgate-Netz),
+       h&ouml;ren dann allerdings kein HD mehr. Gilt ab dem n&auml;chsten Anruf.</li>
   </ul>
   <p class="hint">Gespeicherte &Auml;nderungen gelten nach wenigen Sekunden, auch f&uuml;r laufende Anrufe (dabei
      kurz kein Ton); die eigene Begr&uuml;&szlig;ungsansage wird dabei mit Hochpass und Pr&auml;senz neu erzeugt. Die

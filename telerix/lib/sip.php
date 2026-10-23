@@ -71,8 +71,24 @@ function sip_validate(string $user, string $password, string $registrar): ?strin
    return null;
 }
 
+/*
+ * Codec-Zeilen für den Trunk (Einstellung audio_codec):
+ *   hd       G.722 zuerst (bisheriges Verhalten)
+ *   telefon  G.711 zuerst (A-law vor µ-law). Asterisk wählt bei einem
+ *            eingehenden Angebot nach der eigenen Reihenfolge in allow=
+ *            (incoming_call_offer_pref, Standard "local"); local_first
+ *            antwortet nur mit dem ersten gemeinsamen Codec. Bietet die
+ *            Gegenstelle nur G.722 an, ist das der erste gemeinsame.
+ */
+function sip_codec_lines(string $codec): string
+{
+   return $codec === 'telefon'
+      ? "allow=alaw,ulaw,g722,gsm\nincoming_call_offer_pref=local_first\n"
+      : "allow=g722,alaw,ulaw,gsm\n";
+}
+
 /* Erzeugt den Inhalt von pjsip_trunk.conf. Werte sind bereits geprüft. */
-function sip_render_trunk(string $user, string $password, string $registrar): string
+function sip_render_trunk(string $user, string $password, string $registrar, string $codec = 'hd'): string
 {
    $head = "; Automatisch erzeugt vom Telerix-Webinterface – nicht von Hand ändern.\n";
    if ($user === '') {
@@ -80,6 +96,7 @@ function sip_render_trunk(string $user, string $password, string $registrar): st
    }
    $host = explode(':', $registrar)[0];
    $pw = str_replace(';', '\;', $password);
+   $codecs = sip_codec_lines($codec);
 
    return $head . <<<CONF
 
@@ -99,8 +116,7 @@ type=endpoint
 transport=transport-udp
 context=sip-in
 disallow=all
-allow=g722,alaw,ulaw,gsm
-outbound_auth=telerix-trunk-auth
+{$codecs}outbound_auth=telerix-trunk-auth
 aors=telerix-trunk
 from_user={$user}
 from_domain={$host}
@@ -149,6 +165,24 @@ function sip_save(string $user, string $password, string $registrar): void
       json_encode(['user' => $user, 'password' => $password, 'registrar' => $registrar], JSON_PRETTY_PRINT) . "\n",
       0600
    );
+   sip_write_trunk();
+}
+
+/*
+ * Schreibt pjsip_trunk.conf aus den gespeicherten SIP-Daten und dem
+ * bevorzugten Codec (lib/settings.php). Sind die gespeicherten Daten
+ * ungültig, bleibt die Datei unverändert (Rückgabe false). Wirksam erst
+ * nach asterisk_reload_pjsip().
+ */
+function sip_write_trunk(): bool
+{
+   require_once __DIR__ . '/settings.php';
+   $s = sip_load();
+   if (sip_validate($s['user'], $s['password'], $s['registrar']) !== null) {
+      return false;
+   }
    /* 0640, Gruppe "asterisk" kommt vom setgid-Verzeichnis. */
-   atomic_write(sip_trunk_conf_file(), sip_render_trunk($user, $password, $registrar), 0640);
+   atomic_write(sip_trunk_conf_file(),
+      sip_render_trunk($s['user'], $s['password'], $s['registrar'], settings_effective()['audio_codec']), 0640);
+   return true;
 }

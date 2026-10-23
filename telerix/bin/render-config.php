@@ -1,8 +1,10 @@
 <?php
 /*
  * Erzeugt beim Containerstart die von Asterisk gelesenen Dateien neu:
- * pjsip_trunk.conf aus config/sip.json und die Dateien der Einstellungen
- * (lib/settings.php) aus config/settings.json und den Umgebungsvariablen.
+ * pjsip_trunk.conf aus config/sip.json und dem bevorzugten Codec, die
+ * Dateien der Einstellungen (lib/settings.php) aus config/settings.json und
+ * den Umgebungsvariablen, und die eigene Begrüßungsansage, falls sich
+ * Toneinstellungen oder das Verfahren geändert haben (lib/audio.php).
  *
  * Die Dateien liegen im Datenvolume und werden sonst nur beim Speichern im
  * Webinterface geschrieben. Ohne diesen Schritt kämen Änderungen an den
@@ -17,11 +19,10 @@ declare(strict_types=1);
 require_once __DIR__ . '/../lib/sip.php';
 require_once __DIR__ . '/../lib/settings.php';
 
+/* pjsip_trunk.conf schreibt settings_render() (sip_write_trunk) */
 $s = sip_load();
 if (sip_validate($s['user'], $s['password'], $s['registrar']) !== null) {
    fwrite(STDERR, "telerix: Gespeicherte SIP-Daten ungültig, pjsip_trunk.conf bleibt unverändert.\n");
-} else {
-   atomic_write(sip_trunk_conf_file(), sip_render_trunk($s['user'], $s['password'], $s['registrar']), 0640);
 }
 
 $fatal = false;

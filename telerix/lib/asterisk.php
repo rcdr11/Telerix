@@ -83,6 +83,13 @@ function asterisk_reload_pjsip(): bool
       && asterisk_cli('module reload res_pjsip_endpoint_identifier_ip.so') !== null;
 }
 
+/* Nur die Endpunkte neu laden (z. B. geänderte Codecs); Registrierung und
+   laufende Anrufe bleiben unberührt. */
+function asterisk_reload_endpoints(): bool
+{
+   return asterisk_cli('module reload res_pjsip.so') !== null;
+}
+
 function asterisk_hangup_all(): bool
 {
    return asterisk_cli('channel request hangup all') !== null;

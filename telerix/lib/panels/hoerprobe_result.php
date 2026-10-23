@@ -22,6 +22,9 @@
      <audio controls preload="none" src="hoerprobe.php?f=telefon&amp;t=<?= (int)$probe['created'] ?>"></audio></p>
   <p style="color:#333">Wie bei HD-Telefonie (G.722):<br />
      <audio controls preload="none" src="hoerprobe.php?f=hd&amp;t=<?= (int)$probe['created'] ?>"></audio></p>
+  <p class="hint">Die Fassung &bdquo;wie im Telefonnetz&ldquo; entspricht genau dem, was Anrufer h&ouml;ren, wenn als
+     Codec &bdquo;Telefonqualit&auml;t bevorzugen&ldquo; eingestellt ist. Bei &bdquo;HD bevorzugen&ldquo; rechnet
+     sipgate f&uuml;r Festnetz und Handy noch einmal von G.722 auf G.711 um.</p>
 <?php if ($lv !== null): ?>
   <table class="pegel">
     <tr><th>Gemessen &uuml;ber 20 s</th><th>RMS</th><th>Spitze</th></tr>
