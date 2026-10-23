@@ -4,6 +4,7 @@
    $ice = settings_effective();
    $iceStatus = $streamUrl !== '' || $ice['icecast_status_url'] !== ''
       ? icecast_status($streamUrl, $ice['icecast_status_url']) : null;
+   $info = $streamUrl !== '' ? stream_info($streamUrl) : null;
 ?>
 <div class="container">
   <form action="set_stream.php" method="POST">
@@ -17,6 +18,10 @@
     </div>
   </div>
  <br />
+<?php if ($info !== null): ?>
+  <p class="hint">Qualit&auml;t des Streams: <b><?= h(stream_info_text($info)) ?></b></p>
+<?php include __DIR__ . '/stream_quality_hint.php'; ?>
+<?php endif; ?>
   <div class="row">
     <input type="submit" value="Speichern und Anwenden">
   </div>

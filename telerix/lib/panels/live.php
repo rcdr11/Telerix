@@ -43,6 +43,14 @@
     </tr>
 <?php endforeach; endif; ?>
   </table>
+<?php if ($streamUrl !== ''): $info = stream_info($streamUrl); ?>
+  <p class="hint" style="color:#fff">Qualit&auml;t des Streams: <?= h(stream_info_text($info)) ?></p>
+<?php if (stream_info_low($info)): ?>
+  <div class="w3-panel w3-light-gray" style="border-radius:5px">
+<?php include __DIR__ . '/stream_quality_hint.php'; ?>
+  </div>
+<?php endif; ?>
+<?php endif; ?>
 <?php if ($iceStatus !== null && $iceStatus['error'] === null && $iceStatus['rows']): ?>
   <p class="hint" style="color:#fff"><?= $iceStatus['own'] ? '' : 'Alle Mountpoints des Servers (der eigene lie&szlig; sich nicht zuordnen). ' ?>Telerix
      selbst z&auml;hlt dabei als ein Zuh&ouml;rer, w&auml;hrend einer H&ouml;rprobe als zwei. Die Anzeige wird

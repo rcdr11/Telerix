@@ -53,6 +53,73 @@ function stream_save(string $url): void
    atomic_write(stream_url_file(), $url === '' ? '' : $url . "\n", 0640);
 }
 
+/* ---------- Qualität des Streams (Bitrate, Abtastrate, Kanäle) ---------- */
+
+/* So lange gilt eine Messung; jede öffnet den Stream kurz (ein Zuhörer mehr) */
+const STREAM_INFO_CACHE_SECONDS = 900;
+/* Darunter ein Hinweis, dass eine höhere Bitrate am Telefon besser klingt */
+const STREAM_INFO_MIN_KBPS = 128;
+
+function stream_info_cache_file(): string
+{
+   return data_path('state/stream_info.json');
+}
+
+/*
+ * Format des Streams laut mpg123 (dekodiert einige Frames, ohne Ausgabe):
+ *   ['bitrate' => kbit/s oder null (VBR), 'mode' => 'cbr'|'vbr'|'abr',
+ *    'rate' => Hz, 'channels' => Text, 'layer' => 'I'|'II'|'III']
+ * oder ['error' => Meldung]. STREAM_INFO_CACHE_SECONDS zwischengespeichert.
+ */
+function stream_info(string $url): array
+{
+   $cache = json_decode((string)@file_get_contents(stream_info_cache_file()), true);
+   if (is_array($cache) && ($cache['url'] ?? null) === $url && is_array($cache['info'] ?? null)
+         && time() - (int)($cache['checked'] ?? 0) < STREAM_INFO_CACHE_SECONDS) {
+      return $cache['info'];
+   }
+   require_once __DIR__ . '/asterisk.php';
+   [, , $err] = run_command(['mpg123', '-t', '-n', '20', '-v', '--', $url], 10);
+   if (preg_match('/^MPEG (?:[0-9.]+) L (I{1,3}) (cbr|vbr|abr)([0-9]*) ([0-9]+) (\S+)/m', $err, $m)) {
+      $info = [
+         'bitrate' => $m[3] === '' ? null : (int)$m[3],
+         'mode' => $m[2],
+         'rate' => (int)$m[4],
+         'channels' => match ($m[5]) {
+            'mono' => 'Mono',
+            'stereo' => 'Stereo',
+            'j-s' => 'Stereo (Joint Stereo)',
+            'dual' => 'Zweikanal',
+            default => $m[5],
+         },
+         'layer' => $m[1],
+      ];
+   } else {
+      $info = ['error' => 'Stream nicht abrufbar oder kein MP3.'];
+   }
+   atomic_write(stream_info_cache_file(), json_encode(['url' => $url, 'checked' => time(), 'info' => $info]), 0600);
+   return $info;
+}
+
+/* Kurzbeschreibung, z. B. "MP3 128 kbit/s, 44,1 kHz, Stereo" */
+function stream_info_text(array $info): string
+{
+   if (isset($info['error'])) {
+      return $info['error'];
+   }
+   $codec = $info['layer'] === 'III' ? 'MP3' : 'MPEG Layer ' . $info['layer'];
+   $rate = $info['mode'] === 'cbr' ? $info['bitrate'] . ' kbit/s'
+      : ($info['bitrate'] !== null ? 'etwa ' . $info['bitrate'] . ' kbit/s' : 'variable Bitrate');
+   $khz = str_replace('.', ',', rtrim(rtrim(sprintf('%.1f', $info['rate'] / 1000), '0'), '.'));
+   return "$codec $rate, $khz kHz, {$info['channels']}";
+}
+
+/* Bitrate bekannt und unter STREAM_INFO_MIN_KBPS */
+function stream_info_low(array $info): bool
+{
+   return !isset($info['error']) && $info['bitrate'] !== null && $info['bitrate'] < STREAM_INFO_MIN_KBPS;
+}
+
 /* ---------- Icecast-Status für die Startseite ---------- */
 
 /* Anrufer und Icecast-Status auf der Startseite so oft neu laden (Sekunden) */
