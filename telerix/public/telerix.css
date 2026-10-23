@@ -62,3 +62,12 @@ form.inline { display: inline; }
 @media screen and (max-width: 600px) {
   .col-25, .col-75, input[type=submit], button.submit { width: 100%; margin-top: 0; }
 }
+
+/* Abgesetzter Bereich für selten gebrauchte Einstellungen (Eingangspegel) */
+fieldset.nur-bei-bedarf { border: 1px dashed #888; border-radius: 5px; margin: 16px 0; padding: 4px 12px; }
+fieldset.nur-bei-bedarf legend { color: #333; font-weight: bold; padding: 0 6px; }
+
+/* Pegel der Hörprobe */
+table.pegel { border-collapse: collapse; margin: 4px 0 8px; color: #333; }
+table.pegel th, table.pegel td { padding: 2px 12px 2px 0; text-align: left; }
+table.pegel td.zahl { text-align: right; }

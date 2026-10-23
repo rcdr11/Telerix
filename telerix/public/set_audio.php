@@ -5,7 +5,8 @@ require_once __DIR__ . '/../lib/settings.php';
 
 /* Felder, die über .env festgelegt sind, werden nicht übernommen. */
 $changes = [];
-foreach (['audio_gain_db', 'audio_buffer_s', 'audio_profile', 'audio_highpass_hz'] as $key) {
+foreach (['audio_processing', 'audio_input_db', 'audio_gain_db', 'audio_buffer_s', 'audio_profile',
+      'audio_highpass_hz', 'audio_presence_db'] as $key) {
    if (!setting_locked($key) && isset($_POST[$key])) {
       $changes[$key] = post_str($key);
    }
@@ -19,4 +20,4 @@ try {
    flash('error', $e->getMessage());
 }
 
-redirect('configuration.php');
+redirect('configuration.php#ton');

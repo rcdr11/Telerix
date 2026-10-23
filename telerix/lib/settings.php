@@ -2,9 +2,9 @@
 /*
  * Einstellungen, die früher nur über Umgebungsvariablen (.env) gingen und
  * jetzt im Webinterface gesetzt werden: Tonaufbereitung (dazu neu
- * Klangprofil und Hochpass), Begrüßungsansage an/aus, öffentliche Adresse
- * für SIP/RTP und Testtelefon; außerdem die Anzeige des Icecast-Status auf
- * der Startseite.
+ * Hauptschalter, Eingangspegel, Klangprofil, Hochpass und Präsenz),
+ * Begrüßungsansage an/aus, öffentliche Adresse für SIP/RTP und
+ * Testtelefon; außerdem die Anzeige des Icecast-Status auf der Startseite.
  *
  * Gespeichert in TELERIX_DATA/config/settings.json (nur für "telerix"
  * lesbar). settings_render() erzeugt daraus die Dateien, die Asterisk und
@@ -27,8 +27,14 @@ const AUDIO_GAIN_MAX = 24;
 const AUDIO_BUFFER_MIN = 0;
 const AUDIO_BUFFER_MAX = 10;
 const TESTPHONE_PASSWORD_MIN_LENGTH = 12;
-/* Muss zu asterisk/stream.sh passen (gueltiger_hochpass, gueltiges_profil). */
+/* Muss zu asterisk/stream.sh passen (gueltiger_hochpass, gueltige_praesenz,
+   gueltiges_profil, Bereich des Eingangspegels). */
 const AUDIO_HIGHPASS_CHOICES = [0, 50, 80, 120, 180, 250];
+/* Präsenzanhebung bei etwa 2,8 kHz in dB, 0 = aus */
+const AUDIO_PRESENCE_CHOICES = [0, 2, 3, 4];
+/* Eingangspegel in dB: nur Absenkung, für zu laut ausgesteuerte Streams */
+const AUDIO_INPUT_MIN = -12;
+const AUDIO_INPUT_MAX = 0;
 const AUDIO_PROFILES = [
    'aus'     => 'Aus (unbearbeitet)',
    'sprache' => 'Sprache',
@@ -36,13 +42,18 @@ const AUDIO_PROFILES = [
 ];
 
 /* Einstellung => Umgebungsvariable (null = nur im Webinterface) und Standardwert.
-   Standard für den Ton: unbearbeitet (Anhebung, Leveler und Hochpass aus),
-   Telerix reicht den Stream dann nur in Mono und 16 kHz weiter. */
+   Standard für den Ton: Aufbereitung an, aber Eingangspegel, Anhebung,
+   Leveler, Hochpass und Präsenz aus. Telerix reicht den Stream dann in Mono
+   und 16 kHz weiter, nur der Begrenzer kappt seltene Spitzen über etwa
+   -3,5 dBFS. Mit audio_processing = false entfällt auch er. */
 const SETTINGS = [
+   'audio_processing'   => ['env' => null,                            'default' => true],
+   'audio_input_db'     => ['env' => null,                            'default' => 0],
    'audio_gain_db'      => ['env' => 'TELERIX_AUDIO_ANHEBUNG_DB',     'default' => 0],
    'audio_buffer_s'     => ['env' => 'TELERIX_AUDIO_PUFFER_SEKUNDEN', 'default' => 4],
    'audio_profile'      => ['env' => null,                            'default' => 'aus'],
    'audio_highpass_hz'  => ['env' => null,                            'default' => 0],
+   'audio_presence_db'  => ['env' => null,                            'default' => 0],
    'announcement'       => ['env' => null,                            'default' => true],
    'external_address'   => ['env' => 'TELERIX_EXTERNAL_ADDRESS',      'default' => ''],
    'testphone_password' => ['env' => 'TELERIX_TESTPHONE_PASSWORD',    'default' => ''],
@@ -74,6 +85,17 @@ function settings_int(mixed $v, int $min, int $max, string $label): int
 function setting_check(string $key, mixed $v): mixed
 {
    switch ($key) {
+      case 'audio_processing':
+         /* Formular: "1" = an, "0" = aus */
+         if ($v === '1' || $v === '0') {
+            $v = $v === '1';
+         }
+         if (!is_bool($v)) {
+            throw new SettingsError('Tonaufbereitung: ungültige Auswahl.');
+         }
+         return $v;
+      case 'audio_input_db':
+         return settings_int($v, AUDIO_INPUT_MIN, AUDIO_INPUT_MAX, 'Eingangspegel');
       case 'audio_gain_db':
          return settings_int($v, AUDIO_GAIN_MIN, AUDIO_GAIN_MAX, 'Lautstärke');
       case 'audio_buffer_s':
@@ -89,6 +111,14 @@ function setting_check(string $key, mixed $v): mixed
          }
          if (!in_array($v, AUDIO_HIGHPASS_CHOICES, true)) {
             throw new SettingsError('Hochpass: erlaubt sind ' . implode(', ', AUDIO_HIGHPASS_CHOICES) . ' Hz.');
+         }
+         return $v;
+      case 'audio_presence_db':
+         if (is_string($v) && preg_match('/^[0-9]$/', $v) === 1) {
+            $v = (int)$v;
+         }
+         if (!in_array($v, AUDIO_PRESENCE_CHOICES, true)) {
+            throw new SettingsError('Sprachverständlichkeit: erlaubt sind ' . implode(', ', AUDIO_PRESENCE_CHOICES) . ' dB.');
          }
          return $v;
       case 'announcement':
@@ -173,6 +203,18 @@ function gain_text(int $db): string
    return $db === 0 ? '0 dB (unverändert)' : sprintf('%+d dB', $db);
 }
 
+/* Präsenz für die Anzeige: "aus", "+3 dB" */
+function presence_text(int $db): string
+{
+   return $db === 0 ? 'aus' : sprintf('+%d dB', $db);
+}
+
+/* Eingangspegel für die Anzeige: "0 dB (unverändert)", "-6 dB" */
+function input_text(int $db): string
+{
+   return $db === 0 ? '0 dB (unverändert)' : sprintf('%d dB', $db);
+}
+
 /* Hinweis für gesperrte Felder im Webinterface. */
 function setting_locked_text(string $key): string
 {
@@ -237,9 +279,12 @@ function settings_render(): void
    /* 0640, Gruppe "asterisk" kommt vom setgid-Verzeichnis. */
    atomic_write(settings_audio_conf_file(),
       "# Automatisch erzeugt vom Telerix-Webinterface – nicht von Hand ändern.\n"
+      . 'AUFBEREITUNG=' . ($e['audio_processing'] ? 'an' : 'aus') . "\n"
+      . "EINGANG_DB={$e['audio_input_db']}\n"
       . "ANHEBUNG_DB={$e['audio_gain_db']}\n"
       . "PUFFER_SEKUNDEN={$e['audio_buffer_s']}\n"
       . "HOCHPASS_HZ={$e['audio_highpass_hz']}\n"
+      . "PRAESENZ_DB={$e['audio_presence_db']}\n"
       . "PROFIL={$e['audio_profile']}\n", 0640);
 
    if ($e['announcement']) {
@@ -256,6 +301,7 @@ function settings_render(): void
         . "external_signaling_address=$addr\n", 0640);
 
    atomic_write(settings_testphone_conf_file(), testphone_render($e['testphone_password']), 0640);
+
 }
 
 /* Testtelefon "testphone" im Kontext from-internal (Extension 100). */

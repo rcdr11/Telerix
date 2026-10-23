@@ -30,7 +30,7 @@
    $ok = false;
    try {
       $v = [];
-      foreach (['audio_gain_db', 'audio_highpass_hz', 'audio_profile'] as $key) {
+      foreach (HOERPROBE_KEYS as $key) {
          $v[$key] = setting_locked($key) || !isset($_POST[$key]) ? $cur[$key] : setting_check($key, post_str($key));
       }
       hoerprobe_create($v);
