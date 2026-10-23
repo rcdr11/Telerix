@@ -60,10 +60,12 @@ Update oder eine Neuinstallation bei Nutzern scheitert.
 Bei laufendem Container, im Telerix-Ordner:
 
 ```sh
-tests/smoke-test.sh    # Login, CSRF, Uploads, Stream, SIP, Sicherung, Neustart, Dateirechte
+tests/smoke-test.sh    # Login, CSRF, Uploads, Stream, SIP, Ton- und Codec-Einstellungen, Ansage, Sicherung, Neustart, Dateirechte
 tests/proxy-test.sh    # Betrieb hinter einem Reverse-Proxy (startet Telerix mehrmals neu)
-tests/sip-test.sh      # nachgebildeter SIP-Anbieter: Ansage, Anrufe, Abmeldung, Tonpegel, Aussetzer
-tests/ui-test.sh       # Browser (Playwright): Schieberegler, Hörprobe mit Ladebalken, Aktualisierung der Startseite
+tests/sip-test.sh      # nachgebildeter SIP-Anbieter: Ansage (16/8 kHz), Anrufe, Codec-Wahl, Abmeldung, Tonpegel,
+                       # Begrenzer, Präsenz, Eingangspegel, Aussetzer, Umrechnung in Asterisk
+tests/ui-test.sh       # Browser (Playwright): Schieberegler, Hauptschalter, Hörprobe mit Ladebalken und Pegeln,
+                       # Aktualisierung der Startseite
 ```
 
 **Achtung:** `smoke-test.sh`, `sip-test.sh` und `ui-test.sh` überschreiben Stream-Adresse, SIP-Daten, Ansage und Nummernliste

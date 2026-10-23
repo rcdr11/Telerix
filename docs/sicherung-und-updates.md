@@ -7,14 +7,16 @@
 Auf der Seite **Sicherung**:
 
 - **Herunterladen:** Admin-Zugang, SIP-Zugang, Stream-Adresse, Nummernliste, die eigene Ansage und die
-  Einstellungen aus dem Webinterface (Ton samt Klangprofil und Hochpass, Ansage an/aus, öffentliche Adresse,
-  Testtelefon, Icecast-Status) werden als eine
+  Einstellungen aus dem Webinterface (Ton samt Klangprofil, Hochpass, Präsenz, Eingangspegel und Codec, Ansage
+  an/aus, öffentliche Adresse, Testtelefon, Icecast-Status) werden als eine
   Datei `telerix-backup-….tlxbak` gespeichert. Sie ist mit einem selbst gewählten Backup-Passwort (mindestens
   10 Zeichen) verschlüsselt. **Ohne dieses Passwort lässt sich die Sicherung nicht wieder einspielen.**
 - **Einspielen:** ersetzt die komplette Konfiguration, auch den Admin-Zugang. Danach gelten Benutzername und
   Passwort aus der Sicherung. Manipulierte oder fremde Dateien werden abgewiesen.
 
-Nicht enthalten sind das Original der hochgeladenen Ansage (nur die umgewandelte Fassung), die Login-Sperren und
+Die Ansage steht ab 0.06-mod als Quelle in der Sicherung (Mono, 16 kHz, sonst unbearbeitet); beim Einspielen
+erzeugt Telerix daraus die Fassungen für HD und Telefonqualität neu. Eine Sicherung kann deshalb bis 32 MB groß
+werden. Nicht enthalten sind die hochgeladene Originaldatei (MP3 usw.), die Login-Sperren und
 die Dateien `.env`, `docker-compose.override.yml` und `secrets/admin_password.txt` im Telerix-Ordner. Diese bei
 Bedarf selbst sichern. Ist eine Einstellung über `.env` festgelegt, enthält die Sicherung den im Webinterface
 gespeicherten Wert.

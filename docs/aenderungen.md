@@ -52,6 +52,26 @@ der Container läuft mit `cap_drop: ALL` (plus den zum Start nötigen Fähigkeit
   Bis 0.05-mod galt Sprache, +5 dB, Hochpass 180 Hz. Nach dem Update klingt es deshalb anders, wer die
   Einstellungen nicht selbst gespeichert hat; Werte aus `.env` gelten unverändert. Begründung in
   [Tonqualität](tonqualitaet.md#was-passiert-mit-dem-stream).
+- Ab 0.06-mod: Tonkette in fester Reihenfolge (Eingangspegel, Hochpass, Präsenz, Leveler, Lautstärke, Begrenzer).
+  Der Begrenzer läuft immer und spricht sofort an (bisher nur bei Anhebung, mit 0,1 ms Ansprechzeit und bis zu
+  0,8 dB Überschwingen); bei normal ausgesteuertem Stream ändert sich nichts. Interne Reserve, damit Umrechnung und
+  Präsenz in sox nicht abschneiden. Hauptschalter *Tonaufbereitung*, der alles abschaltet (nur Mono und 16 kHz).
+  Siehe [Tonqualität](tonqualitaet.md#begrenzer).
+- Ab 0.06-mod: *Sprachverständlichkeit (Präsenz)*, +2 bis +4 dB bei 2,8 kHz, Standard aus
+- Ab 0.06-mod: *Eingangspegel* für zu laut ausgesteuerte Streams (−12 bis 0 dB, wirkt im Decoder, bevor mpg123
+  abschneidet), Standard 0 dB
+- Ab 0.06-mod: Hörprobe zeigt RMS und Spitze des Streams und der aufbereiteten Fassung, mit Hinweis bei einem
+  übersteuerten Stream
+- Ab 0.06-mod: eigene Begrüßungsansage in 16 kHz für HD-Anrufer und 8 kHz für G.711, beide direkt kodiert, mit
+  Hochpass und Präsenz wie beim Stream und auf einen festen Sprachpegel (−23 dBFS) gebracht; wird bei geänderten
+  Toneinstellungen und nach dem Update aus dem Original neu erzeugt. Die Sicherung enthält jetzt die Quelle (16 kHz),
+  sie darf deshalb bis 32 MB groß sein.
+- Ab 0.06-mod: Einstellung *Codec*: „HD bevorzugen (G.722)“ (Standard, wie bisher) oder „Telefonqualität bevorzugen
+  (G.711)“, gegen die zusätzliche Umrechnung bei sipgate für Anrufer ohne HD; gilt ohne Neustart. Dazu eine
+  Codec-Diagnose je Anruf im Protokoll. Siehe [HD oder Telefonqualität?](tonqualitaet.md#hd-oder-telefonqualität)
+- Ab 0.06-mod: QoS-Markierung: Sprache DSCP EF, SIP DSCP CS3
+- Ab 0.06-mod: Bitrate, Abtastrate und Kanäle des Streams bei *Internetstream* und auf der Startseite, mit Hinweis
+  unter 128 kbit/s
 - Ab 0.06-mod: Anrufer und Icecast-Status auf der Startseite werden jede Minute neu geladen
 - Ab 0.06-mod: Pakete nur noch auf ihre Versionsreihe festgelegt (PHP mit Mindestversion), damit ein Paket-Update
   bei Alpine den Build nicht mehr scheitern lässt; monatlicher Build mit Rauchtest auf GitHub
