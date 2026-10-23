@@ -10,6 +10,11 @@
  *          endlos ohne Stockungen, für den Vergleich der Klangprofile.
  * /abbruch /srv/test.mp3, beendet die Verbindung aber nach 8 s – wie ein
  *          abgebrochener Livestream.
+ * /heiss   /srv/heiss.mp3 (dieselbe Sprache, bis 0 dBFS ausgesteuert; beim
+ *          Dekodieren entstehen Werte über 0 dBFS) endlos ohne Stockungen,
+ *          für den Eingangspegel.
+ * /niedrig /srv/niedrig.mp3 (dieselbe Sprache mit 64 kbit/s) endlos ohne
+ *          Stockungen, für den Hinweis zur Bitrate.
  * Jede Verbindung beginnt am Anfang der Datei.
  *
  * Nachbildung von AzuraCast für den Icecast-Status auf der Startseite:
@@ -31,7 +36,7 @@ if ($path === '/listen/gemeinde/status-json.xsl') {
 if ($path === '/listen/gemeinde/live') {
     $path = '/live';
 }
-if (!in_array($path, ['/live', '/steady', '/musik', '/abbruch'], true)) {
+if (!in_array($path, ['/live', '/steady', '/musik', '/abbruch', '/heiss', '/niedrig'], true)) {
     http_response_code(404);
     return true;
 }
@@ -45,9 +50,14 @@ while (ob_get_level()) {
 }
 set_time_limit(0);
 
-$data = file_get_contents($path === '/musik' ? '/srv/musik.mp3' : '/srv/test.mp3');
+$data = file_get_contents(match ($path) {
+    '/musik' => '/srv/musik.mp3',
+    '/heiss' => '/srv/heiss.mp3',
+    '/niedrig' => '/srv/niedrig.mp3',
+    default  => '/srv/test.mp3',
+});
 $len = strlen($data);
-$bytesPerSec = 128000 / 8;
+$bytesPerSec = ($path === '/niedrig' ? 64000 : 128000) / 8;
 $chunk = 1600;            // 100 ms
 $pos = 0;
 $sent = 0;

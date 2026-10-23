@@ -1,6 +1,7 @@
 #!/bin/bash
 # Browser-Test der Oberfläche mit Playwright (Chromium ohne Bildschirm):
-# Schieberegler der Lautstärke, Hörprobe mit Ladebalken ohne Neuladen,
+# Schieberegler der Lautstärke, Hauptschalter, Eingangspegel, Hörprobe mit
+# Ladebalken ohne Neuladen und mit Pegeln,
 # regelmäßige Aktualisierung der Startseite, keine JavaScript-Fehler.
 #
 # Startet im Compose-Netz einen Test-Stream (Sinuston) und einen

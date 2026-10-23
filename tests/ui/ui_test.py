@@ -1,5 +1,6 @@
-"""Browser-Test der Oberfläche: Schieberegler, Hörprobe ohne Neuladen,
-Aktualisierung der Startseite. Läuft im Playwright-Container im Compose-Netz.
+"""Browser-Test der Oberfläche: Schieberegler, Hauptschalter und abgesetzter
+Eingangspegel, Hörprobe ohne Neuladen mit Pegeln, Aktualisierung der
+Startseite. Läuft im Playwright-Container im Compose-Netz.
 """
 import os, sys, time
 from playwright.sync_api import sync_playwright
@@ -48,9 +49,20 @@ with sync_playwright() as p:
     slider.evaluate("el => { el.value = 9; el.dispatchEvent(new Event('input')); }")
     check('Anzeige folgt dem Regler (+9 dB)', page.text_content('#audio_gain_wert') == '+9 dB')
 
+    print('== Hauptschalter und Eingangspegel')
+    check('Hauptschalter Tonaufbereitung vorhanden', page.locator('#audio_processing').get_attribute('type') == 'checkbox')
+    check('Eingangspegel abgesetzt (eigener Kasten „Nur bei zu lautem Stream“)',
+          page.locator('fieldset.nur-bei-bedarf #audio_input_db').count() == 1
+          and 'Nur bei zu lautem Stream' in page.text_content('fieldset.nur-bei-bedarf legend')
+          and page.locator('fieldset.nur-bei-bedarf #audio_gain_db').count() == 0)
+    check('Eingangspegel nur Absenkung (0 bis -12 dB)',
+          page.eval_on_selector_all('#audio_input_db option', 'os => os.map(o => +o.value)') == list(range(0, -13, -1)))
+
     print('== Hörprobe ohne Neuladen')
     slider.evaluate("el => { el.value = -6; el.dispatchEvent(new Event('input')); }")
     page.select_option('#audio_profile', 'musik')
+    page.select_option('#audio_presence_db', '3')
+    page.check('#audio_processing')
     page.evaluate("window.__ohneNeuladen = 1")
     page.click('button[data-hoerprobe]')
     time.sleep(1.5)
@@ -71,6 +83,11 @@ with sync_playwright() as p:
     check('Ergebnis eingesetzt (zwei Player, Werte der Probe)',
           page.locator('#hoerprobe-ergebnis audio').count() == 2
           and 'Lautstärke -6 dB, Sprache und Musik' in ' '.join(page.text_content('#hoerprobe-ergebnis').split()))
+    check('Präsenz in der Überschrift der Probe', 'Präsenz +3 dB' in ' '.join(page.text_content('#hoerprobe-ergebnis').split()))
+    pegel = ' '.join(page.text_content('#hoerprobe-ergebnis table.pegel').split()) if page.locator('#hoerprobe-ergebnis table.pegel').count() else ''
+    print('  INFO Pegel: ' + pegel)
+    check('Pegel angezeigt (Stream und aufbereitet, in dBFS)',
+          'Stream, unbearbeitet' in pegel and 'Aufbereitet' in pegel and pegel.count('dBFS') == 4)
     check('Formular unverändert (Regler steht noch auf -6)', page.text_content('#audio_gain_wert') == '-6 dB')
     check('Knöpfe wieder freigegeben', not page.locator('button[data-hoerprobe]').is_disabled())
     time.sleep(1.5)

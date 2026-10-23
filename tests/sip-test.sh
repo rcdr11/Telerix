@@ -6,10 +6,13 @@
 #     Telerix registriert und der Telerix anruft und den Anruf aufnimmt,
 #   - einen Test-Livestream (tests/sip/stream/router.php) mit leiser,
 #     verhallter Sprache, der alle 10 s kurz stockt.
-# Geprüft werden Begrüßungsansage, Wartemusik, Abmeldung beim Stoppen,
-# doppelte Anrufe nach einem Neustart, Pegel und Aussetzer, Klangprofile und
-# Hochpass (mit einem Orgel-Testsignal), Neuversuch nach einem Abbruch des
-# Streams, Hörprobe und Codec-Anzeige im Webinterface.
+# Geprüft werden Begrüßungsansage (auch in 16 kHz), Wartemusik, Abmeldung
+# beim Stoppen, doppelte Anrufe nach einem Neustart, Pegel und Aussetzer,
+# Klangprofile und Hochpass (mit einem Orgel-Testsignal), Präsenz,
+# Eingangspegel und Begrenzer (mit einem übersteuerten Stream), Neuversuch
+# nach einem Abbruch des Streams, Hörprobe mit Pegeln, Qualität des Streams,
+# Codec-Anzeige und -Wahl (HD oder Telefonqualität), Umrechnung in Asterisk,
+# kein Comfort Noise und die Codec-Diagnose im Protokoll.
 #
 # Aufruf: tests/sip-test.sh   (Container muss laufen; ändert SIP-, Stream-
 # und Ansage-Einstellungen und erzeugt den Telerix-Container einmal neu)
@@ -64,7 +67,10 @@ login() {
 }
 set_stream() { local t; t="$(token configuration.php)"; curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" --data-urlencode "inetstream=$1" "$BASE/set_stream.php"; }
 set_sip() { local t; t="$(token configuration.php)"; curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" --data-urlencode "sip_id=$1" --data-urlencode "sip_pw=$2" --data-urlencode "sip_reg=$3" "$BASE/set_sipconfig.php"; }
-set_audio() { local t; t="$(token configuration.php)"; curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d "audio_gain_db=$1" -d "audio_buffer_s=$2" -d audio_profile=sprache -d audio_highpass_hz=180 "$BASE/set_audio.php"; }
+set_audio() { local t; t="$(token configuration.php)"; curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d "audio_gain_db=$1" -d "audio_buffer_s=$2" -d audio_profile=sprache -d audio_highpass_hz=180 -d audio_presence_db=0 -d audio_input_db=0 -d audio_processing=1 -d audio_codec=hd "$BASE/set_audio.php"; }
+set_codec() { local t; t="$(token configuration.php)"; curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d "audio_codec=$1" "$BASE/set_audio.php"; }
+# Kanal des laufenden Anrufs bei Telerix: Formate und Umrechnung
+tx_channel() { tx_cli "core show channel $(tx_cli "core show channels concise" | grep "^PJSIP/" | head -1 | cut -d"!" -f1)"; }
 
 # Anrufe, die Telerix seit dem Start bekommen hat ("calls processed")
 tx_calls_processed() { tx_cli "core show channels count" | awk '/calls? processed/ {print $1}'; }
@@ -131,6 +137,14 @@ docker run --rm -v "$(winpath "$TMP"):/out" --entrypoint sh telerix:local -c '
    sox akkord-n.wav leise.wav gain -30 fade 0.3 8 0.3
    sox akkord-n.wav laut.wav gain -12 fade 0.3 8 0.3
    sox leise.wav laut.wav leise.wav laut.wav -c 2 -C 128 /out/musik.mp3
+   # Übersteuerter Stream: dieselbe Sprache mit Orgel (Sägezahn), 6 dB über
+   # Vollaussteuerung abgeschnitten; beim Dekodieren entstehen Werte über
+   # 0 dBFS. Dazu dieselbe Sprache mit nur 64 kbit/s.
+   d=$(soxi -D /tmp/mix.wav)
+   sox -n -r 44100 -c "$(soxi -c /tmp/mix.wav)" saege.wav synth "$d" sawtooth 131 sawtooth 196 gain -n -14
+   sox -m /tmp/mix.wav saege.wav heiss.wav
+   sox heiss.wav -C 128 /out/heiss.mp3 gain -n 0 gain 6 2>/dev/null
+   sox /out/test.mp3 -C 64 /out/niedrig.mp3
 ' | sed 's/^/  INFO Testsignal: /'
 docker rm -f "$PROV" "$STREAM" >/dev/null 2>&1
 docker run -d --name "$STREAM" --network "$NET" -e PHP_CLI_SERVER_WORKERS=4 -v "$(winpath "$TMP"):/srv:ro" --entrypoint php84 \
@@ -183,9 +197,13 @@ check "Keine Aussetzer trotz Stockungen im Stream" 'grep -q "aussetzer=0 " <<<"$
 check "Verzögerung bis zum Ton höchstens 6 s" 'awk -v s="$ECHTZEIT" "BEGIN {split(s, a, \"verzoegerung=\"); exit !(a[2] + 0 <= 6)}"'
 
 echo "== Klangprofile und Hochpass (Hörprobe-Modus, wie im Webinterface)"
-# probe <Name> <Anhebung> <Hochpass> <Profil> <Sekunden>: Ausgabe als Benutzer
-# telerix (wie die Hörprobe im Webinterface) nach /tmp/probe-<Name>.raw
-probe() { in_tx "su -s /bin/sh telerix -c '/usr/local/bin/telerix-stream --hoerprobe $5 $2 $3 $4' > /tmp/probe-$1.raw"; }
+# probe <Name> <Anhebung> <Hochpass> <Profil> <Sekunden> [<Präsenz> <Eingangspegel> <an|aus>]:
+# Ausgabe als Benutzer telerix (wie die Hörprobe im Webinterface) nach
+# /tmp/probe-<Name>.raw
+probe() { in_tx "su -s /bin/sh telerix -c '/usr/local/bin/telerix-stream --hoerprobe $5 ${8:-an} ${7:-0} $3 ${6:-0} $4 $2' > /tmp/probe-$1.raw"; }
+# Spitze eines Abschnitts und Anzahl der Abtastwerte mit Vollausschlag
+pk() { in_tx "sox -t raw -r 16000 -e signed -b 16 -c 1 /tmp/probe-$1.raw -n stats 2>&1" | awk '/Pk lev dB/ {print $4}'; }
+voll() { in_tx "od -An -v -t d2 -w2 /tmp/probe-$1.raw" | awk '$1 >= 32767 || $1 <= -32768 {n++} END {print n + 0}'; }
 # RMS eines Abschnitts: seg <Name> <ab Sekunde> <Länge>
 seg() { in_tx "sox -t raw -r 16000 -e signed -b 16 -c 1 /tmp/probe-$1.raw -n trim $2 $3 stats 2>&1" | awk '/RMS lev dB/ {print $4}'; }
 # Unterschied laut - leise im Orgelsignal (Abschnitte 1-7 s und 9-15 s)
@@ -211,17 +229,49 @@ $DC cp "$TMP/test.mp3" telerix:/tmp/test.mp3 >/dev/null 2>&1
 set_stream "http://$STREAM_IP:8099/steady"
 probe aus0 0 0 aus 20
 probe leiser -12 0 aus 20
+probe ganzaus 0 0 aus 20 0 0 aus
 REF="$(in_tx "sox /tmp/test.mp3 -n remix - rate 16000 trim 0 20 stats 2>&1" | awk '/RMS lev dB/ {print $4}')"
-info "Teststream direkt: RMS $REF dBFS; unbearbeitet: $(seg aus0 0 20) dBFS; -12 dB: $(seg leiser 0 20) dBFS"
-check "Standard unbearbeitet: Pegel wie im Stream (±0,5 dB)" 'awk -v a="$(seg aus0 0 20)" -v r="$REF" "BEGIN {d = a - r; exit !(d >= -0.5 && d <= 0.5)}"'
+info "Teststream direkt: RMS $REF dBFS; Standard: $(seg aus0 0 20) dBFS, Spitze $(pk aus0) dBFS; Aufbereitung aus: $(seg ganzaus 0 20) dBFS; -12 dB: $(seg leiser 0 20) dBFS"
+check "Standard (nur Begrenzer): Pegel wie im Stream (±0,5 dB)" 'awk -v a="$(seg aus0 0 20)" -v r="$REF" "BEGIN {d = a - r; exit !(d >= -0.5 && d <= 0.5)}"'
+check "Tonaufbereitung aus: Pegel wie im Stream (±0,5 dB)" 'awk -v a="$(seg ganzaus 0 20)" -v r="$REF" "BEGIN {d = a - r; exit !(d >= -0.5 && d <= 0.5)}"'
 check "Lautstärke -12 dB macht 12 dB leiser (±0,5 dB)" 'awk -v a="$(seg aus0 0 20)" -v b="$(seg leiser 0 20)" "BEGIN {d = a - b; exit !(d >= 11.5 && d <= 12.5)}"'
-check "Ungültige Werte für die Hörprobe abgelehnt" '! in_tx "su -s /bin/sh telerix -c \"/usr/local/bin/telerix-stream --hoerprobe 5 5 100 sprache\"" >/dev/null 2>&1'
+check "Ungültige Werte für die Hörprobe abgelehnt" '! in_tx "su -s /bin/sh telerix -c \"/usr/local/bin/telerix-stream --hoerprobe 5 an 0 100 0 sprache 5\"" >/dev/null 2>&1'
+
+echo "== Begrenzer, Präsenz und Eingangspegel (übersteuerter Stream)"
+set_stream "http://$STREAM_IP:8099/heiss"
+probe h-aus 0 0 aus 20 0 0 aus
+probe h-std 0 0 aus 20
+probe h-praes 0 0 aus 20 4
+probe h-praes-spr 5 180 sprache 20 4
+probe h-ein 0 0 aus 20 0 -3
+info "Aufbereitung aus: Spitze $(pk h-aus) dBFS, $(voll h-aus) Werte mit Vollausschlag; Standard: Spitze $(pk h-std) dBFS, $(voll h-std); Präsenz +4: $(pk h-praes) dBFS, $(voll h-praes); Präsenz +4, Sprache, +5 dB: $(pk h-praes-spr) dBFS; Eingangspegel -3: $(pk h-ein) dBFS"
+check "Ohne Aufbereitung erreicht der Stream 0 dBFS (Testsignal stimmt)" '[ "$(voll h-aus)" -gt 0 ]'
+check "Begrenzer läuft immer: Spitzen unter -3 dBFS, nichts abgeschnitten" 'awk -v p="$(pk h-std)" "BEGIN {exit !(p < -3)}" && [ "$(voll h-std)" = 0 ]'
+check "Präsenz +4 dB bei 0 dB Lautstärke übersteuert nicht" 'awk -v p="$(pk h-praes)" "BEGIN {exit !(p < -3)}" && [ "$(voll h-praes)" = 0 ]'
+check "Präsenz, Klangprofil und Anhebung zusammen: Spitzen unter -3 dBFS" 'awk -v p="$(pk h-praes-spr)" "BEGIN {exit !(p < -3)}"'
+check "Eingangspegel -3 dB senkt ab" 'awk -v a="$(seg h-std 0 20)" -v b="$(seg h-ein 0 20)" "BEGIN {exit !(a - b >= 0.5)}"'
+# Hörprobe im Webinterface: Spitze des Streams und Hinweis
+hp_json() { curl -s -b "$JAR" -c "$JAR" -H "Accept: application/json" --data-urlencode "csrf=$(token configuration.php)" -d audio_processing=1 -d audio_gain_db=0 -d audio_profile=aus -d audio_highpass_hz=0 -d audio_presence_db=0 -d "audio_input_db=$1" "$BASE/hoerprobe.php"; }
+j="$(hp_json 0)"
+check "Hörprobe zeigt Pegel (Stream und aufbereitet)" 'grep -q "Gemessen &uuml;ber 20 s" <<<"$j" && grep -q "Stream, unbearbeitet" <<<"$j"'
+check "Hörprobe: übersteuerter Stream erreicht 0 dBFS, Hinweis auf Eingangspegel" 'grep -q "Der Stream erreicht 0 dBFS" <<<"$j"'
+j="$(hp_json -3)"
+info "Pegel mit Eingangspegel -3 dB (Stream RMS, Spitze; aufbereitet RMS, Spitze): $(grep -o "[-+]\?[0-9]\+,[0-9] dBFS" <<<"$j" | tr "\n" " ")"
+check "Mit Eingangspegel -3 dB: Spitze über 0 dBFS sichtbar, nichts abgeschnitten" 'grep -q "geht &uuml;ber 0 dBFS hinaus" <<<"$j" && ! grep -q "Der Stream erreicht 0 dBFS" <<<"$j"'
+
+echo "== Qualität des Streams"
+in_tx "rm -f /var/lib/telerix/state/stream_info.json"
+set_stream "http://$STREAM_IP:8099/niedrig"
+check "64 kbit/s: Qualität und Hinweis bei Internetstream" 'curl -s -b "$JAR" -c "$JAR" "$BASE/configuration.php" | grep -q "MP3 64 kbit/s, 44,1 kHz" && curl -s -b "$JAR" "$BASE/configuration.php" | grep -q "Der Stream hat nur 64 kbit/s"'
+check "64 kbit/s: Hinweis auch auf der Startseite" 'curl -s -b "$JAR" -c "$JAR" "$BASE/start.php" | grep -q "Der Stream hat nur 64 kbit/s"'
+set_stream "http://$STREAM_IP:8099/steady"
+check "128 kbit/s: Qualität ohne Hinweis" 'curl -s -b "$JAR" -c "$JAR" "$BASE/configuration.php" | grep -q "MP3 128 kbit/s, 44,1 kHz" && ! curl -s -b "$JAR" "$BASE/configuration.php" | grep -q "Der Stream hat nur"'
 
 echo "== Hörprobe im Webinterface"
 t="$(token configuration.php)"
-curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d audio_gain_db=5 -d audio_profile=musik -d audio_highpass_hz=120 "$BASE/hoerprobe.php"
+curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d audio_gain_db=5 -d audio_profile=musik -d audio_highpass_hz=120 -d audio_presence_db=3 "$BASE/hoerprobe.php"
 conf="$(curl -s -b "$JAR" -c "$JAR" "$BASE/configuration.php")"
-check "Hörprobe erstellt und angezeigt" 'grep -q "H&ouml;rprobe vom" <<<"$conf" && grep -q "Sprache und Musik," <<<"$conf"'
+check "Hörprobe erstellt und angezeigt" 'grep -q "H&ouml;rprobe vom" <<<"$conf" && grep -q "Sprache und Musik," <<<"$conf" && grep -q "Pr&auml;senz +3 dB" <<<"$conf"'
 probe_json="$(curl -s -b "$JAR" -c "$JAR" -H "Accept: application/json" --data-urlencode "csrf=$(token configuration.php)" -d audio_gain_db=-6 -d audio_profile=aus -d audio_highpass_hz=0 "$BASE/hoerprobe.php")"
 check "Hörprobe im Hintergrund (JSON mit neuem Ergebnis-Block)" 'grep -q "\"ok\":true" <<<"$probe_json" && grep -q "<audio" <<<"$probe_json" && grep -q "Lautst&auml;rke -6 dB" <<<"$probe_json"'
 check "Hörprobe hat nichts gespeichert" 'in_tx "grep -qx PROFIL=sprache /var/lib/telerix/asterisk/audio.conf"'
@@ -274,6 +324,8 @@ call anruf1 45
 info "Anwendung: $CALL_APP"
 info "Aufnahme ab Sekunde $ANSAGE_SKIP: $CALL_STATS"
 check "Begrüßungsansage wird gespielt" 'grep -q "Playback!tx/willkommen-gottesdienst" <<<"$CALL_APP"'
+check "Codec-Diagnose im Protokoll, ohne Rufnummer" '$DC logs --since "$START" telerix 2>/dev/null | grep -q "Codec: angeboten und unterstützt (g722|alaw), gewählt (g722)"'
+check "Keine Rufnummer in der Diagnose" '! $DC logs --since "$START" telerix 2>/dev/null | grep "Codec:" | grep -q "4711\|anruf"'
 check "Keine Meldung 'does not exist'" '! $DC logs --since "$START" telerix 2>/dev/null | grep -q "does not exist"'
 check "Genau ein eingehender Anruf bei Telerix" '[ "$CALL_CHANNELS" = 1 ]'
 info "Aufnahme kürzer als der Anruf um $CALL_MISSING s (davon 2 s Wait() im Dialplan ohne Ton)"
@@ -283,13 +335,30 @@ check "Pegel der Wartemusik -20 dBFS (±3)" 'awk -v r="$(stat_of rms)" "BEGIN {e
 check "Spitzen unter -3 dBFS" 'awk -v p="$(stat_of spitze)" "BEGIN {exit !(p < -3)}"'
 
 echo "== Eigene Ansage wird bevorzugt"
-docker exec "$PROV" sh -c "sox -n -r 16000 -c 1 /tmp/eigene.wav synth 3 sine 600 vol 0.3"
+docker exec "$PROV" sh -c "sox -n -r 44100 -c 1 /tmp/eigene.wav synth 6 sine 600 vol 0.3"
 docker cp "$PROV:/tmp/eigene.wav" "$(winpath "$TMP")/eigene.wav" >/dev/null
 t="$(token ansage.php)"
 curl -s -o /dev/null -b "$JAR" -c "$JAR" -F "csrf=$t" -F "ansage=@$(winpath "$TMP/eigene.wav")" "$BASE/ansage.php"
 call anruf2 10
 info "Anwendung: $CALL_APP"
 check "Hochgeladene Ansage wird gespielt" 'grep -q "Playback!/var/lib/telerix/sounds/ansage" <<<"$CALL_APP"'
+
+echo "== Ansage in HD und Telefonqualität, Umrechnung in Asterisk"
+# ansage <Name>: Anruf, nach 3 s (Ansage läuft) die Formate des Kanals
+ansage_kanal() {
+   prov_cli "channel originate Local/anruf@provider application Wait 9" >/dev/null
+   sleep 3.5
+   KANAL="$(tx_channel)"
+   STARTSEITE="$(curl -s -b "$JAR" -c "$JAR" "$BASE/start.php")"
+   info "$1: $(grep -E "NativeFormats|WriteTranscode" <<<"$KANAL" | tr -s " " | tr "\n" " ")"
+   sleep 7
+}
+ansage_kanal "HD bevorzugen, Ansage"
+check "G.722: Ansage aus ansage.wav16 direkt kodiert (16 kHz, ohne Umweg über 8 kHz)" 'grep -q "NativeFormats: (g722)" <<<"$KANAL" && grep -q "WriteTranscode: Yes (slin@16000)->(g722@16000)" <<<"$KANAL"'
+set_codec telefon
+ansage_kanal "Telefonqualität bevorzugen, Ansage"
+check "Telefonqualität: Angebot G.722 und G.711, gewählt A-law" 'grep -q "NativeFormats: (alaw)" <<<"$KANAL"'
+check "G.711: Ansage aus ansage.wav (8 kHz) direkt kodiert" 'grep -q "WriteTranscode: Yes (slin@8000)->(alaw@8000)" <<<"$KANAL"'
 
 echo "== Ansage abgeschaltet"
 t="$(token ansage.php)"
@@ -302,6 +371,38 @@ t="$(token ansage.php)"
 curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d action=enable "$BASE/ansage.php"
 t="$(token ansage.php)"
 curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d action=delete "$BASE/ansage.php"
+
+echo "== Wartemusik: Umrechnung in Asterisk"
+t="$(token ansage.php)"
+curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d action=disable "$BASE/ansage.php"
+ansage_kanal "Telefonqualität bevorzugen, Wartemusik"
+check "G.711: Wartemusik einmal auf 8 kHz umgerechnet, einmal kodiert" 'grep -q "WriteTranscode: Yes (slin@16000)->(slin@8000)->(alaw@8000)" <<<"$KANAL"'
+check "Startseite zeigt Telefonqualität (G.711)" 'grep -q "Telefonqualität (G.711)" <<<"$STARTSEITE"'
+# Codec wechseln, während ein Anruf läuft: Anruf bleibt, ohne Aussetzer
+prov_cli "channel originate Local/anruf@provider application Record /tmp/wechsel.wav16,0,16,qx" >/dev/null
+sleep 4
+set_codec hd
+sleep 3
+check "Codec-Wechsel (PJSIP neu geladen): laufender Anruf bleibt bestehen" '[ "$(tx_pjsip_channels)" = 1 ]'
+sleep 11
+docker exec "$PROV" sh -c "sox -t wav /tmp/wechsel.wav16 -t raw /tmp/wechsel.raw" 2>/dev/null
+WECHSEL="$(docker exec "$PROV" php84 /analyze.php /tmp/wechsel.raw 16000 2)"
+info "Aufnahme beim Wechsel: $WECHSEL"
+check "Keine Aussetzer beim Wechsel" 'grep -q "aussetzer=0 " <<<"$WECHSEL"'
+ansage_kanal "HD bevorzugen, Wartemusik"
+check "G.722: Wartemusik direkt aus 16 kHz kodiert" 'grep -q "WriteTranscode: Yes (slin@16000)->(g722@16000)" <<<"$KANAL"'
+# Anbieter bietet nur G.722 an: Anruf muss auch bei Telefonqualität zustande kommen
+set_codec telefon
+prov_cli "channel originate Local/nurg722@provider application Wait 8" >/dev/null
+sleep 4
+KANAL="$(tx_channel)"
+check "Telefonqualität, Angebot nur G.722: Anruf kommt mit G.722 zustande" 'grep -q "NativeFormats: (g722)" <<<"$KANAL"'
+sleep 5
+set_codec hd
+check "Telerix bietet kein Comfort Noise an (SDP ohne CN)" '! docker logs --since "$START" "$PROV" 2>&1 | grep -qi "rtpmap:[0-9]* CN/"'
+check "QoS: tos_audio EF am Trunk, CS3 am Transport, ohne Warnung" 'tx_cli "pjsip show endpoint telerix-trunk" | grep -Eq "tos_audio +: 184" && tx_cli "pjsip show transport transport-udp" | grep -Eq " tos +: 96" && ! $DC logs telerix 2>/dev/null | grep -q "Unable to set .* TOS"'
+t="$(token ansage.php)"
+curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d action=enable "$BASE/ansage.php"
 
 echo "== Codec-Anzeige auf der Startseite"
 prov_cli "channel originate Local/anruf@provider application Wait 12" >/dev/null

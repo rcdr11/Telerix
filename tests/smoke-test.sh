@@ -79,6 +79,7 @@ curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" --data-urlen
 check "Ungültige Adresse abgelehnt" 'page configuration.php | grep -q "Ungültige Stream-Adresse"'
 curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" --data-urlencode 'inetstream=127.0.0.1:8099/test.mp3' "$BASE/set_stream.php"
 check "Adresse gespeichert (http:// ergänzt)" '[ "$(in_container "cat /var/lib/telerix/asterisk/stream.url")" = "http://127.0.0.1:8099/test.mp3" ]'
+check "Qualität des Streams: nicht erreichbar wird gemeldet" 'page configuration.php | grep -q "Qualit&auml;t des Streams: <b>Stream nicht abrufbar oder kein MP3.</b>"'
 
 echo "== Icecast-Status"
 in_container 'rm -f /var/lib/telerix/state/icecast_status.json'
@@ -104,6 +105,16 @@ check "Passwort wird nicht ins Formular zurückgegeben" '! page configuration.ph
 check "Registrierung in Asterisk vorhanden" 'in_container "asterisk -rx \"pjsip show registrations\"" | grep -q "telerix-trunk-reg/sip:192.0.2.10"'
 check "Endpunkt in Asterisk vorhanden" 'in_container "asterisk -rx \"pjsip show endpoint telerix-trunk\"" | grep -q "Endpoint:  telerix-trunk"'
 check "Passwort mit ; korrekt übernommen" 'in_container "asterisk -rx \"pjsip show auth telerix-trunk-auth\"" | grep -q "password *: Geheim;123"'
+ep() { in_container "asterisk -rx \"pjsip show endpoint telerix-trunk\""; }
+check "QoS: Sprache als EF markiert (tos_audio 184), SIP als CS3 (tos 96)" 'ep | grep -Eq "tos_audio +: 184" && in_container "asterisk -rx \"pjsip show transport transport-udp\"" | grep -Eq " tos +: 96"'
+check "Codec HD bevorzugen (Standard): G.722 zuerst" 'ep | grep -Eq "^ allow +: \(g722\|alaw\|ulaw\|gsm\)" && ep | grep -Eq "incoming_call_offer_pref +: local *$"'
+t="$(token configuration.php)"
+curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d audio_codec=telefon "$BASE/set_audio.php"
+check "Codec Telefonqualität: G.711 zuerst, nur ein Codec in der Antwort, ohne Neustart" 'ep | grep -Eq "^ allow +: \(alaw\|ulaw\|g722\|gsm\)" && ep | grep -Eq "incoming_call_offer_pref +: local_first"'
+check "Registrierung nach dem Codec-Wechsel noch da" 'in_container "asterisk -rx \"pjsip show registrations\"" | grep -q "telerix-trunk-reg/sip:192.0.2.10"'
+curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d audio_codec=hd "$BASE/set_audio.php"
+check "Codec wieder HD" 'ep | grep -Eq "^ allow +: \(g722\|alaw\|ulaw\|gsm\)"'
+check "Codec-Diagnose im Dialplan (Log ohne Rufnummer, app_verbose geladen)" 'in_container "asterisk -rx \"dialplan show 200@sip-in\"" | grep -q "Codec: angeboten und unterstützt" && in_container "asterisk -rx \"module show like app_verbose\"" | grep -q "app_verbose.so"'
 
 echo "== Einstellungen (Ton, öffentliche Adresse, Testtelefon)"
 aconf() { in_container "cat /var/lib/telerix/asterisk/audio.conf"; }
@@ -112,12 +123,15 @@ konf() { page configuration.php | tr -d '\n'; }
 # Standardwerte: ohne gespeicherte Einstellungen ist der Ton unbearbeitet
 in_container 'rm -f /var/lib/telerix/config/settings.json'
 check "Standard: Lautstärke 0 dB, Klangprofil aus, Hochpass aus" 'konf | grep -q "id=\"audio_gain_db\"[^>]*value=\"0\"" && konf | grep -q "value=\"aus\" selected" && konf | grep -q "value=\"0\" selected>aus (Standard)"'
+check "Standard: Tonaufbereitung an, Präsenz aus, Eingangspegel 0 dB, Codec HD" 'konf | grep -q "id=\"audio_processing\" name=\"audio_processing\" value=\"1\" checked" && konf | grep -q "<select id=\"audio_presence_db\"[^<]*<option value=\"0\" selected>aus (Standard)" && konf | grep -q "value=\"0\" selected>0 dB (unverändert) (Standard)" && konf | grep -q "value=\"hd\" selected>HD bevorzugen (G.722) (Standard)"'
+check "Eingangspegel abgesetzt vom Lautstärke-Regler" 'konf | grep -q "<legend>Nur bei zu lautem Stream</legend>"'
 t="$(token configuration.php)"
 check "Konfigurationsseite zeigt Toneinstellungen" 'page configuration.php | grep -q "name=\"audio_gain_db\""'
 curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d audio_gain_db=99 -d audio_buffer_s=4 "$BASE/set_audio.php"
 check "Ungültige Lautstärke abgelehnt" 'page configuration.php | grep -q "Lautstärke: erlaubt sind ganze Zahlen von -24 bis 24"'
 curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d audio_gain_db=-12 "$BASE/set_audio.php"
 check "Leiser stellen (-12 dB) gespeichert" 'aconf | grep -qx "ANHEBUNG_DB=-12"'
+check "Übrige Werte in audio.conf auf Standard: Aufbereitung an, Eingangspegel 0, Präsenz 0" 'aconf | grep -qx "AUFBEREITUNG=an" && aconf | grep -qx "EINGANG_DB=0" && aconf | grep -qx "PRAESENZ_DB=0"'
 curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d audio_gain_db=8 -d audio_buffer_s=6 -d audio_profile=musik -d audio_highpass_hz=50 "$BASE/set_audio.php"
 check "Lautstärke und Vorlauf in audio.conf" 'aconf | grep -qx "ANHEBUNG_DB=8" && aconf | grep -qx "PUFFER_SEKUNDEN=6"'
 check "Klangprofil und Hochpass in audio.conf" 'aconf | grep -qx "PROFIL=musik" && aconf | grep -qx "HOCHPASS_HZ=50"'
@@ -125,6 +139,20 @@ curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d audio_hig
 check "Ungültiger Hochpass abgelehnt" 'page configuration.php | grep -q "Hochpass: erlaubt sind 0, 50, 80, 120, 180, 250 Hz"'
 curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d audio_profile=laut "$BASE/set_audio.php"
 check "Ungültiges Klangprofil abgelehnt" 'page configuration.php | grep -q "Klangprofil: ungültige Auswahl"'
+curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d audio_presence_db=5 "$BASE/set_audio.php"
+check "Ungültige Präsenz abgelehnt" 'page configuration.php | grep -q "Sprachverständlichkeit: erlaubt sind 0, 2, 3, 4 dB"'
+curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d audio_input_db=3 "$BASE/set_audio.php"
+check "Eingangspegel über 0 dB abgelehnt (nur Absenkung)" 'page configuration.php | grep -q "Eingangspegel: erlaubt sind ganze Zahlen von -12 bis 0"'
+curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d audio_codec=opus "$BASE/set_audio.php"
+check "Ungültiger Codec abgelehnt" 'page configuration.php | grep -q "Codec: ungültige Auswahl"'
+curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d audio_presence_db=3 -d audio_input_db=-4 -d audio_processing=0 "$BASE/set_audio.php"
+check "Präsenz, Eingangspegel und Hauptschalter in audio.conf" 'aconf | grep -qx "PRAESENZ_DB=3" && aconf | grep -qx "EINGANG_DB=-4" && aconf | grep -qx "AUFBEREITUNG=aus"'
+check "Hauptschalter aus im Formular" 'konf | grep -q "id=\"audio_processing\" name=\"audio_processing\" value=\"1\">"'
+# Wie das Formular: verstecktes Feld 0, Häkchen 1 (das letzte gilt)
+curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d audio_processing=0 -d audio_processing=1 "$BASE/set_audio.php"
+check "Hauptschalter wieder an (Formular mit Häkchen)" 'aconf | grep -qx "AUFBEREITUNG=an"'
+check "Ungültige Werte für die Hörprobe vom Skript abgelehnt" '! in_container "su -s /bin/sh telerix -c \"/usr/local/bin/telerix-stream --hoerprobe 5 an 0 0 5 aus 0\"" >/dev/null 2>&1 && ! in_container "su -s /bin/sh telerix -c \"/usr/local/bin/telerix-stream --hoerprobe 5 an 3 0 0 aus 0\"" >/dev/null 2>&1'
+check "Rohdatei der Hörprobe nur im Arbeitsverzeichnis" '! in_container "su -s /bin/sh telerix -c \"/usr/local/bin/telerix-stream --hoerprobe 5 an 0 0 0 aus 0 /tmp/x.au\"" >/dev/null 2>&1 && ! in_container "su -s /bin/sh telerix -c \"/usr/local/bin/telerix-stream --hoerprobe 5 an 0 0 0 aus 0 /var/lib/telerix/state/.hoerprobe-../../x.au\"" >/dev/null 2>&1'
 curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d audio_gain_db=5 -d audio_profile=sprache -d audio_highpass_hz=180 "$BASE/hoerprobe.php"
 check "Hörprobe ohne erreichbaren Stream: Meldung" 'page configuration.php | grep -q "Der Stream liefert gerade keinen Ton"'
 probe_json="$(curl -s -D "$TMP/probe.hdr" -b "$JAR" -c "$JAR" -H "Accept: application/json" --data-urlencode "csrf=$t" -d audio_gain_db=0 -d audio_profile=aus -d audio_highpass_hz=0 "$BASE/hoerprobe.php")"
@@ -168,8 +196,28 @@ check "PHP-Code mit .mp3-Endung abgelehnt (MIME)" 'page ansage.php | grep -q "De
 check "Ansage-Upload ohne Token abgelehnt (403)" '[ "$(status -F "ansage=@$TMP/ton.wav" "$BASE/ansage.php")" = 403 ]'
 curl -s -o /dev/null -b "$JAR" -c "$JAR" -F "csrf=$t" -F "ansage=@$TMP/ton.mp3" "$BASE/ansage.php"
 check "MP3-Ansage angenommen" 'page ansage.php | grep -q "eigene Ansage"'
-check "Ansage in 8 kHz Mono umgewandelt" 'in_container "soxi /var/lib/telerix/sounds/ansage.wav" | grep -q "Sample Rate *: 8000" && in_container "soxi /var/lib/telerix/sounds/ansage.wav" | grep -q "Channels *: 1"'
-check "Original unter zufälligem Namen gespeichert" 'in_container "ls /var/lib/telerix/uploads/audio" | grep -Eq "^[0-9a-f]{32}\.mp3$"'
+check "Ansage für HD in 16 kHz Mono umgewandelt (ansage.wav16)" 'in_container "soxi /var/lib/telerix/sounds/ansage.wav16" | grep -q "Sample Rate *: 16000" && in_container "soxi /var/lib/telerix/sounds/ansage.wav16" | grep -q "Channels *: 1"'
+check "Ansage für G.711 in 8 kHz Mono (ansage.wav)" 'in_container "soxi /var/lib/telerix/sounds/ansage.wav" | grep -q "Sample Rate *: 8000" && in_container "soxi /var/lib/telerix/sounds/ansage.wav" | grep -q "Channels *: 1"'
+check "Original unter zufälligem Namen gespeichert, dazu die Quelle" 'in_container "ls /var/lib/telerix/uploads/audio" | grep -Eq "^[0-9a-f]{32}\.mp3$" && in_container "test -f /var/lib/telerix/uploads/audio/quelle.wav"'
+check "Dialplan findet ansage.wav16 oder ansage.wav" 'in_container "asterisk -rx \"dialplan show 200@sip-in\"" | grep -q "ansage.wav16)} | \${STAT(e,/var/lib/telerix/sounds/ansage.wav)}"'
+# Toneinstellungen ändern: Ansage wird neu erzeugt (andere Datei), Rückgabe: Prüfsumme
+summe() { in_container "md5sum /var/lib/telerix/sounds/ansage.wav16" | cut -d" " -f1; }
+vorher="$(summe)"
+t="$(token configuration.php)"
+curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d audio_presence_db=4 -d audio_highpass_hz=120 "$BASE/set_audio.php"
+check "Ansage nach geänderten Toneinstellungen neu erzeugt" '[ -n "$vorher" ] && [ "$(summe)" != "$vorher" ]'
+curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d audio_presence_db=3 -d audio_highpass_hz=50 "$BASE/set_audio.php"
+# Installation von vor 0.06-mod: nur ansage.wav (8 kHz) und das Original
+# (render-config.php läuft beim Start als root, danach setzt der Entrypoint
+# die Rechte; hier direkt als telerix)
+render_config() { in_container "su -s /bin/sh telerix -c 'php84 /opt/telerix/bin/render-config.php' >/dev/null"; }
+in_container "rm -f /var/lib/telerix/sounds/ansage.wav16 /var/lib/telerix/sounds/ansage.stand /var/lib/telerix/uploads/audio/quelle.wav"
+render_config
+check "Update: HD-Ansage beim Start aus dem Original erzeugt (640, Gruppe asterisk)" 'in_container "soxi -r /var/lib/telerix/sounds/ansage.wav16" | grep -qx 16000 && [ "$(in_container "stat -c %a:%G /var/lib/telerix/sounds/ansage.wav16")" = "640:asterisk" ]'
+in_container "cp /var/lib/telerix/sounds/ansage.wav /tmp/alt.wav && rm -f /var/lib/telerix/sounds/ansage.wav16 /var/lib/telerix/sounds/ansage.stand /var/lib/telerix/uploads/audio/*"
+render_config
+check "Update ohne Original: alte 8-kHz-Ansage bleibt in Gebrauch" 'in_container "cmp -s /tmp/alt.wav /var/lib/telerix/sounds/ansage.wav" && ! in_container "test -e /var/lib/telerix/sounds/ansage.wav16" && page ansage.php | grep -q "eigene Ansage"'
+curl -s -o /dev/null -b "$JAR" -c "$JAR" -F "csrf=$t" -F "ansage=@$TMP/ton.mp3" "$BASE/ansage.php"
 check "Upload nicht über Web erreichbar" '[ "$(status "$BASE/uploads/audio/")" = 404 ]'
 
 printf 'Max Mustermann 06011123\nErika Muster;+49 6011 2345\n<b>Fett</b> 0232142312\n' > "$TMP/liste.txt"
@@ -198,7 +246,7 @@ check "Sicherung verschlüsselt (kein Klartext)" 'head -c 17 "$TMP/sicherung.tlx
 # Konfiguration ändern, dann Sicherung einspielen
 t="$(token configuration.php)"
 curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" --data-urlencode 'inetstream=http://anders.example/x' "$BASE/set_stream.php"
-curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d audio_gain_db=2 -d audio_buffer_s=1 -d audio_profile=aus -d audio_highpass_hz=0 "$BASE/set_audio.php"
+curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d audio_gain_db=2 -d audio_buffer_s=1 -d audio_profile=aus -d audio_highpass_hz=0 -d audio_presence_db=0 -d audio_input_db=0 -d audio_processing=0 -d audio_codec=telefon "$BASE/set_audio.php"
 curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d icecast_status_url= -d icecast_panel=1 "$BASE/set_icecast.php"
 curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d external_address= "$BASE/set_external.php"
 curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" "$BASE/set_testphone.php"
@@ -217,13 +265,15 @@ check "Sicherung eingespielt" 'page backup.php | grep -q "Sicherung eingespielt"
 check "Stream-Adresse wiederhergestellt" '[ "$(in_container "cat /var/lib/telerix/asterisk/stream.url")" = "http://127.0.0.1:8099/test.mp3" ]'
 check "SIP-Zugang wiederhergestellt" 'in_container "asterisk -rx \"pjsip show auth telerix-trunk-auth\"" | grep -q "password *: Geheim;123"'
 check "Ansage und Nummernliste wiederhergestellt" 'page ansage.php | grep -q "eigene Ansage" && page settings.php | grep -q "Max Mustermann"'
-check "Einstellungen wiederhergestellt (Ton, Adresse, Ansage an)" 'aconf | grep -qx "ANHEBUNG_DB=8" && aconf | grep -qx "PROFIL=musik" && in_container "grep -q 203.0.113.10 /var/lib/telerix/asterisk/pjsip_external.conf" && ! in_container "test -e /var/lib/telerix/asterisk/ansage_aus"'
+check "Ansage in 16 und 8 kHz neu erzeugt" 'in_container "soxi -r /var/lib/telerix/sounds/ansage.wav16" | grep -qx 16000 && in_container "soxi -r /var/lib/telerix/sounds/ansage.wav" | grep -qx 8000'
+check "Einstellungen wiederhergestellt (Ton, Adresse, Ansage an)" 'aconf | grep -qx "ANHEBUNG_DB=8" && aconf | grep -qx "PROFIL=musik" && aconf | grep -qx "PRAESENZ_DB=3" && aconf | grep -qx "AUFBEREITUNG=an" && in_container "grep -q 203.0.113.10 /var/lib/telerix/asterisk/pjsip_external.conf" && ! in_container "test -e /var/lib/telerix/asterisk/ansage_aus"'
+check "Codec wiederhergestellt (HD, in der Trunk-Datei)" 'in_container "grep -qx allow=g722,alaw,ulaw,gsm /var/lib/telerix/asterisk/pjsip_trunk.conf"'
 check "Testtelefon wiederhergestellt" 'in_container "asterisk -rx \"pjsip show auth testphone\"" | grep -q "password *: TestTelefon12345"'
 check "Alle Einstellungen aus dem Webinterface wiederhergestellt (settings.json wie vorher)" 'in_container "cmp -s /tmp/settings-vorher.json /var/lib/telerix/config/settings.json"'
 check "Sicherung enthält jede Einstellung" 'in_container "php84 -r '"'"'require \"/opt/telerix/lib/backup.php\"; exit(array_keys(backup_collect()[\"settings\"]) === array_keys(SETTINGS) ? 0 : 1);'"'"'"'
 # Testwerte zurücksetzen
 t="$(token configuration.php)"
-curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d audio_gain_db=5 -d audio_buffer_s=4 -d audio_profile=sprache -d audio_highpass_hz=180 "$BASE/set_audio.php"
+curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d audio_gain_db=5 -d audio_buffer_s=4 -d audio_profile=sprache -d audio_highpass_hz=180 -d audio_presence_db=0 -d audio_input_db=0 -d audio_processing=1 -d audio_codec=hd "$BASE/set_audio.php"
 curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d external_address= "$BASE/set_external.php"
 curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" "$BASE/set_testphone.php"
 curl -s -o /dev/null -b "$JAR" -c "$JAR" --data-urlencode "csrf=$t" -d icecast_status_url= -d icecast_panel=1 "$BASE/set_icecast.php"
