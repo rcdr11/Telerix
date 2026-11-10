@@ -63,7 +63,7 @@ mpg123_anzahl() { in_tx "ps -o user,args | grep '^ *asterisk .*mpg123' | grep -c
 cleanup() {
    login
    set_stream ""
-   docker rm -f "$STREAM" >/dev/null 2>&1
+   docker rm -f -v "$STREAM" >/dev/null 2>&1
    rm -rf "$TMP"
 }
 trap cleanup EXIT
@@ -80,7 +80,7 @@ docker run --rm -v "$(winpath "$TMP"):/out" --entrypoint sh telerix:local -c '
    sox -n -r 44100 -c 2 /tmp/s.wav trim 0 30
    sox /tmp/s.wav -C 128 /out/stille.mp3
 '
-docker rm -f "$STREAM" >/dev/null 2>&1
+docker rm -f -v "$STREAM" >/dev/null 2>&1
 docker run -d --name "$STREAM" --network "$NET" -e PHP_CLI_SERVER_WORKERS=8 -v "$(winpath "$TMP"):/srv:ro" --entrypoint php84 \
    telerix:local -S 0.0.0.0:8099 /srv/router.php >/dev/null
 STREAM_IP="$(ip_of "$STREAM")"

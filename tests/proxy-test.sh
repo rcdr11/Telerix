@@ -38,7 +38,7 @@ wait_healthy() {
 CLIENTS="telerix-test-client-a telerix-test-client-b telerix-test-client-c telerix-test-client-d telerix-test-client-e"
 start_clients() {
    for c in $CLIENTS; do
-      docker rm -f "$c" >/dev/null 2>&1
+      docker rm -f -v "$c" >/dev/null 2>&1
       docker run -d --name "$c" --network "$NET" -v "$(winpath tests/proxy/client.sh):/client.sh:ro" \
          "$CLIENT_IMAGE" sleep 3600 >/dev/null
    done
@@ -56,7 +56,7 @@ result_of() { sed -n 's/.*RESULT=//p' <<<"$1"; }
 telerix_log() { $DC logs --no-log-prefix --since "$START" telerix 2>/dev/null; }
 
 cleanup() {
-   docker rm -f "$PROXY" $CLIENTS >/dev/null 2>&1
+   docker rm -f -v "$PROXY" $CLIENTS >/dev/null 2>&1
    $DC up -d >/dev/null 2>&1
    wait_healthy
    reset_throttle
@@ -68,7 +68,7 @@ docker build -q -t "$CLIENT_IMAGE" - >/dev/null <<'EOF'
 FROM alpine:3.24.2@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6
 RUN apk add --no-cache curl
 EOF
-docker rm -f "$PROXY" >/dev/null 2>&1
+docker rm -f -v "$PROXY" >/dev/null 2>&1
 docker run -d --name "$PROXY" --network "$NET" --entrypoint nginx \
    -v "$(winpath tests/proxy/proxy-nginx.conf):/proxy.conf:ro" telerix:local \
    -c /proxy.conf -g 'daemon off;' >/dev/null

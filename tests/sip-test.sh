@@ -106,7 +106,7 @@ cleanup() {
    login
    set_sip "" "" ""
    set_stream ""
-   docker rm -f "$PROV" "$STREAM" >/dev/null 2>&1
+   docker rm -f -v "$PROV" "$STREAM" >/dev/null 2>&1
    rm -rf "$TMP"
 }
 trap cleanup EXIT
@@ -146,7 +146,7 @@ docker run --rm -v "$(winpath "$TMP"):/out" --entrypoint sh telerix:local -c '
    sox heiss.wav -C 128 /out/heiss.mp3 gain -n 0 gain 6 2>/dev/null
    sox /out/test.mp3 -C 64 /out/niedrig.mp3
 ' | sed 's/^/  INFO Testsignal: /'
-docker rm -f "$PROV" "$STREAM" >/dev/null 2>&1
+docker rm -f -v "$PROV" "$STREAM" >/dev/null 2>&1
 docker run -d --name "$STREAM" --network "$NET" -e PHP_CLI_SERVER_WORKERS=4 -v "$(winpath "$TMP"):/srv:ro" --entrypoint php84 \
    telerix:local -S 0.0.0.0:8099 /srv/router.php >/dev/null
 docker run -d --name "$PROV" --network "$NET" -v "$(winpath tests/sip/provider):/provider:ro" \

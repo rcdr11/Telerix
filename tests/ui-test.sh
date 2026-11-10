@@ -20,13 +20,13 @@ PASS="$(tr -d '\r\n' < secrets/admin_password.txt)"
 winpath() { if command -v cygpath >/dev/null; then cygpath -m "$(realpath "$1")"; else realpath "$1"; fi; }
 TMP="$(mktemp -d)"
 command -v cygpath >/dev/null && TMP="$(cygpath -m "$TMP")"
-cleanup() { docker rm -f "$STREAM" >/dev/null 2>&1; rm -rf "$TMP"; }
+cleanup() { docker rm -f -v "$STREAM" >/dev/null 2>&1; rm -rf "$TMP"; }
 trap cleanup EXIT
 
 cp tests/sip/stream/router.php "$TMP/"
 docker run --rm -v "$TMP:/out" --entrypoint sh telerix:local -c \
    'sox -n -r 44100 -c 2 /tmp/t.wav synth 60 sine 440 vol 0.1 && sox /tmp/t.wav -C 128 /out/test.mp3' 2>/dev/null
-docker rm -f "$STREAM" >/dev/null 2>&1
+docker rm -f -v "$STREAM" >/dev/null 2>&1
 docker run -d --name "$STREAM" --network "$NET" -e PHP_CLI_SERVER_WORKERS=4 -v "$TMP:/srv:ro" \
    --entrypoint php84 telerix:local -S 0.0.0.0:8099 /srv/router.php >/dev/null
 docker compose exec -T telerix rm -f /var/lib/telerix/state/login_attempts.json
