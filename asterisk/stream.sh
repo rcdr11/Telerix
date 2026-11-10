@@ -20,6 +20,19 @@
 # für Anrufer mit G.711 (8 kHz) selbst herunter. Bricht der Stream ab,
 # verbindet das Skript nach kurzer, dann wachsender Pause neu.
 #
+# Wächter: Kommen am Ende der Kette (direkt vor Asterisk) STREAM_TIMEOUT_
+# SEKUNDEN lang keine Daten mehr an, beendet das Skript die ganze Kette und
+# verbindet neu. Das ist nötig, weil mpg123 (1.33) bei einem Server, der
+# nichts mehr sendet, die Verbindung aber offen hält, trotz --timeout ewig
+# wartet und dabei sogar SIGTERM übergeht; deshalb wird hart beendet
+# (SIGKILL). Gemessen wird über den Schreibzähler des letzten Glieds
+# (/proc/<pid>/io), dafür braucht es nur BusyBox.
+# Zusätzlich wird dauerhafte digitale Stille im Protokoll gemeldet (ohne
+# neu zu verbinden). Den Zustand (letzte Daten, Stille, Grund des letzten
+# Abbruchs) schreibt das Skript für das Webinterface nach
+# /run/telerix-stream/status. Alle Meldungen gehen mit Zeitstempel auf
+# stderr und damit ins Container-Protokoll (docker compose logs).
+#
 #   telerix-stream --hoerprobe <sekunden> <an|aus> <eingangspegel> <hochpass>
 #                  <praesenz> <profil> <lautstaerke> [<rohdatei>]
 #      gibt einmalig so viele Sekunden mit den angegebenen Werten aus, ohne
@@ -80,7 +93,28 @@ PUFFER_SEKUNDEN=4
 # sie wieder von vorn.
 NEUVERSUCH_SEKUNDEN="2 5 10 30"
 STABIL_SEKUNDEN=60
+# Wächter: so viele Sekunden ohne neue Daten am Ende der Kette, dann wird
+# die Verbindung abgebrochen und neu aufgebaut. Beim Verbinden kommt der
+# Vorlauf (PUFFER_SEKUNDEN) dazu. Derselbe Wert geht als --timeout an
+# mpg123 (wirkt dort nur beim Verbindungsaufbau zuverlässig).
+STREAM_TIMEOUT_SEKUNDEN=15
+# Stille: Abschnitte von STILLE_BLOCK_SEKUNDEN, deren Spitze unter
+# STILLE_DB (dBFS) bleibt, gelten als still. Nach STILLE_SEKUNDEN Stille am
+# Stück eine Warnung ins Protokoll (keine Neuverbindung, der Stream läuft
+# ja). STILLE_SEKUNDEN=0 schaltet die Prüfung ab.
+STILLE_DB=-60
+STILLE_SEKUNDEN=120
+STILLE_BLOCK_SEKUNDEN=5
+# Nach so vielen erfolglosen Versuchen hintereinander nur noch jeden
+# zehnten im Protokoll melden (die Pausen bleiben gleich)
+MELDE_VERSUCHE=5
+# Zustand für das Webinterface (lib/stream.php); vom Entrypoint angelegt
+STATUS_VERZEICHNIS=/run/telerix-stream
 # -------------------------------------------------------------------------
+
+# Meldung mit Zeitstempel ins Protokoll (stderr landet über Asterisk und
+# supervisord im Container-Log)
+melde() { echo "[$(date '+%F %T')] telerix-stream: $*" >&2; }
 
 # Die Werte zu Ton am Telefon kommen aus dem Webinterface (Konfiguration ->
 # Ton am Telefon) bzw. für Anhebung und Vorlauf aus .env
@@ -199,7 +233,21 @@ if [ "$AUFBEREITUNG" = an ]; then
    fi
 fi
 
-dekodieren() { mpg123 -q $skala --au - -- "$streamurl" 2>/dev/null; }
+# Fehlermeldungen von mpg123 (z. B. HTTP-Fehler) und sox; im Dauerbetrieb
+# eine Datei im Arbeitsverzeichnis, deren letzte Meldung von mpg123 als Grund
+# ins Protokoll kommt (sox meldet dann nur "premature EOF"). Bei der Hörprobe
+# gehen die Meldungen von sox wie bisher an das Webinterface. Für sox ein
+# eigener Dateideskriptor (4), zunächst eine Kopie von stderr: /dev/stderr
+# neu zu öffnen schlägt fehl, wenn stderr einem anderen Benutzer gehört
+# (z. B. unter su).
+fehlerdatei=/dev/null
+exec 4>&2
+
+# --timeout wirkt bei mpg123 1.33 nur beim Verbindungsaufbau zuverlässig,
+# gegen einen stehenden Datenstrom hilft der Wächter unten
+dekodieren() {
+   mpg123 -q --timeout "$STREAM_TIMEOUT_SEKUNDEN" $skala --au - -- "$streamurl" 2>"$fehlerdatei"
+}
 
 aufbereiten() {
    if [ -n "$rohdatei" ]; then
@@ -211,15 +259,45 @@ aufbereiten() {
            remix - \
            $vorher \
            rate -v "$AUSGABE_RATE" \
-           $effekte
+           $effekte 2>&4
 }
 
-# Alle Kindprozesse beenden (Pipeline, sleep). Asterisk beendet beim Neuladen
-# ohnehin die ganze Prozessgruppe; das hier gilt für alle anderen Fälle,
-# auch für eine abgebrochene Hörprobe.
-cleanup() { pkill -P $$ 2>/dev/null; }
-trap 'cleanup; exit 0' TERM INT HUP
-trap cleanup EXIT
+# PIDs aller Nachkommen von $1 (Kinder, Enkel, ...) aus einer Momentaufnahme
+# von ps. Die Pipeline läuft teils in Unter-Shells (Funktionen), mpg123 ist
+# also nicht unbedingt ein direktes Kind dieses Skripts.
+nachkommen() {
+   ps -o pid,ppid 2>/dev/null | awk -v w="$1" '
+      NR > 1 { kinder[$2] = kinder[$2] " " $1 }
+      END {
+         n = 1; q[1] = w
+         for (i = 1; i <= n; i++) {
+            m = split(kinder[q[i]], k, " ")
+            for (j = 1; j <= m; j++) { q[++n] = k[j]; print k[j] }
+         }
+      }'
+}
+
+# Alle Kindprozesse sofort hart beenden (Pipeline, Analyse, sleep). Erst die
+# vollständige Liste, dann KILL an alle: Mit TERM würden die Unter-Shells
+# zuerst enden, mpg123 bekäme einen neuen Elternprozess und ginge verloren;
+# außerdem übergeht mpg123 TERM, solange es auf Daten wartet. Danach die
+# beendeten direkten Kinder einsammeln (keine Zombies). Asterisk beendet beim
+# Neuladen ohnehin die ganze Prozessgruppe; das hier gilt für alle anderen
+# Fälle, auch für eine abgebrochene Hörprobe.
+beende_kinder() {
+   liste=$(nachkommen $$)
+   [ -n "$liste" ] || return 0
+   kill -KILL $liste 2>/dev/null
+   wait 2>/dev/null
+}
+
+arbeitsdir=""
+aufraeumen() {
+   beende_kinder
+   [ -n "$arbeitsdir" ] && rm -rf "$arbeitsdir"
+}
+trap 'aufraeumen; exit 0' TERM INT HUP
+trap aufraeumen EXIT
 
 if [ -n "$hoerprobe" ]; then
    if [ -z "$stream_ok" ]; then
@@ -236,11 +314,43 @@ if [ -n "$hoerprobe" ]; then
    exit 0
 fi
 
+# ---- Zustand für das Webinterface ----------------------------------------
+# Nur der Wartemusik-Prozess von Asterisk schreibt ihn, nicht Testaufrufe
+# (TELERIX_SKRIPTTEST, tests/sip-test.sh)
+statusdatei=""
+if [ -z "${TELERIX_SKRIPTTEST:-}" ] && [ -d "$STATUS_VERZEICHNIS" ] && [ -w "$STATUS_VERZEICHNIS" ]; then
+   statusdatei=$STATUS_VERZEICHNIS/status
+fi
+zustand=start
+grund=""
+letzte_daten=""
+verbunden_seit=""
+stille_seit=""
+status_zeit=0
+# Zeilen "name=wert", gelesen von lib/stream.php (stream_watch_status)
+status_schreiben() {
+   status_zeit=$(date +%s)
+   [ -n "$statusdatei" ] || return 0
+   {
+      echo "zustand=$zustand"
+      echo "grund=$grund"
+      echo "letzte_daten=$letzte_daten"
+      echo "verbunden_seit=$verbunden_seit"
+      echo "stille_seit=$stille_seit"
+      echo "timeout=$STREAM_TIMEOUT_SEKUNDEN"
+      echo "aktualisiert=$status_zeit"
+   } > "$statusdatei.$$" 2>/dev/null && mv -f "$statusdatei.$$" "$statusdatei" 2>/dev/null
+}
+umask 022
+
 # Ändern sich Stream-Adresse oder Tonaufbereitung, beendet sich das Skript;
 # Asterisk startet es dann mit den neuen Werten neu
 zustand() { cat "$urlfile" "$audiofile" 2>/dev/null; }
 startzustand=$(zustand)
-geaendert() { [ "$(zustand)" != "$startzustand" ]; }
+# Auch beenden, wenn der Elternprozess (Asterisk) nicht mehr läuft, z. B.
+# nach einem Absturz; sonst liefe das Skript verwaist weiter
+eltern=$PPID
+geaendert() { ! kill -0 "$eltern" 2>/dev/null || [ "$(zustand)" != "$startzustand" ]; }
 
 # Bis zu $1 Sekunden warten, bei geänderten Einstellungen sofort beenden
 wait_or_change() {
@@ -254,9 +364,83 @@ wait_or_change() {
 
 if [ -z "$stream_ok" ]; then
    # Kein Stream eingerichtet
+   zustand=kein_stream
+   status_schreiben
    wait_or_change 30
    exit 0
 fi
+
+# Arbeitsverzeichnis (FIFO für die Stille-Prüfung, Fehlermeldungen von
+# mpg123). Verzeichnisse beendeter Läufe, z. B. nach SIGKILL, entfernen.
+for d in /tmp/telerix-stream.*; do
+   [ -d "$d" ] || continue
+   p=${d##*.}
+   case "$p" in ''|*[!0-9]*) continue ;; esac
+   kill -0 "$p" 2>/dev/null || rm -rf "$d"
+done
+arbeitsdir=/tmp/telerix-stream.$$
+rm -rf "$arbeitsdir"
+if mkdir -m 0700 "$arbeitsdir"; then
+   fehlerdatei=$arbeitsdir/fehler
+   # Anhängen: mpg123 leert die Datei bei jedem Versuch (2>), sox schreibt
+   # dann wieder ans Ende
+   : > "$fehlerdatei"
+   exec 4>>"$fehlerdatei"
+   fifo=$arbeitsdir/analyse
+else
+   arbeitsdir=""
+   STILLE_SEKUNDEN=0
+fi
+
+# Bisher geschriebene Bytes des letzten Glieds der Kette (vor Asterisk)
+geschrieben() { sed -n 's/^wchar: //p' "/proc/$1/io" 2>/dev/null; }
+
+# ---- Stille ---------------------------------------------------------------
+# Liest die Ausgabe in Blöcken von STILLE_BLOCK_SEKUNDEN mit und schreibt die
+# Spitze jedes Blocks (dBFS) mit Zeitstempel nach $arbeitsdir/pegel. Läuft,
+# solange das letzte Glied ($1) lebt, und liest immer weiter, damit tee nie
+# blockiert.
+analysieren() {
+   block=$((AUSGABE_RATE * 2 * STILLE_BLOCK_SEKUNDEN))
+   while kill -0 "$1" 2>/dev/null; do
+      spitze=$(head -c "$block" \
+         | sox -q -t raw -r "$AUSGABE_RATE" -e signed-integer -b 16 -c 1 - -n stats 2>&1 \
+         | awk '$1 == "Pk" && $3 == "dB" {print $4}')
+      if [ -n "$spitze" ]; then
+         echo "$(date +%s) $spitze" > "$arbeitsdir/pegel.neu" && mv -f "$arbeitsdir/pegel.neu" "$arbeitsdir/pegel"
+      else
+         sleep 1
+      fi
+   done
+}
+
+pegel_zeit=""
+stille_gemeldet=""
+# Wertet den letzten Block aus: Warnung nach STILLE_SEKUNDEN Stille, Meldung,
+# wenn wieder Ton kommt
+stille_pruefen() {
+   [ -r "$arbeitsdir/pegel" ] || return 0
+   read -r zeit spitze < "$arbeitsdir/pegel" || return 0
+   [ "$zeit" = "$pegel_zeit" ] && return 0
+   pegel_zeit=$zeit
+   if awk -v p="$spitze" -v g="$STILLE_DB" 'BEGIN { exit !(p == "-inf" || p + 0 < g) }'; then
+      [ -n "$stille_seit" ] || stille_seit=$((zeit - STILLE_BLOCK_SEKUNDEN))
+      if [ -z "$stille_gemeldet" ] && [ $((zeit - stille_seit)) -ge "$STILLE_SEKUNDEN" ]; then
+         melde "Warnung: Der Stream liefert seit $((zeit - stille_seit)) s nur Stille (Spitze unter $STILLE_DB dBFS). Läuft die Übertragung?"
+         stille_gemeldet=1
+         status_schreiben
+      fi
+   else
+      if [ -n "$stille_gemeldet" ]; then
+         melde "Ton ist wieder da (Stille dauerte etwa $((zeit - stille_seit)) s)"
+      fi
+      if [ -n "$stille_seit" ]; then
+         stille_seit=""
+         stille_gemeldet=""
+         status_schreiben
+      fi
+   fi
+}
 
 # Puffer: Vorlauf plus 2 s Reserve für Schübe nach einer Stockung.
 # Der Vorlauf entsteht beim Verbinden: Die letzte Stufe wartet
@@ -269,24 +453,98 @@ puffer_bytes=$((AUSGABE_RATE * 2 * (PUFFER_SEKUNDEN + 2)))
 # Neu verbinden im Skript selbst statt sich zu beenden: Asterisk startet ein
 # Wartemusik-Programm, das kurz nach dem Start endet, erst verzögert neu.
 versuch=0
+fehlversuche=0
+unterbrochen=""
+waechter_gemeldet=""
 while :; do
    start=$(date +%s)
-   aufbereiten \
-      | mbuffer -q -m "$puffer_bytes" -s 640 2>/dev/null \
-      | { sleep "$PUFFER_SEKUNDEN"; exec cat; } &
-   pid=$!
+   zustand=verbinde
+   status_schreiben
+   [ -n "$arbeitsdir" ] && rm -f "$arbeitsdir/pegel"
+   if [ "$STILLE_SEKUNDEN" -gt 0 ] && rm -f "$fifo" && mkfifo -m 0600 "$fifo"; then
+      # Letztes Glied: tee gibt an Asterisk weiter und an die Stille-Prüfung
+      aufbereiten \
+         | mbuffer -q -m "$puffer_bytes" -s 640 2>/dev/null \
+         | { sleep "$PUFFER_SEKUNDEN"; exec tee "$fifo"; } &
+      pid=$!
+      analysieren "$pid" < "$fifo" &
+   else
+      aufbereiten \
+         | mbuffer -q -m "$puffer_bytes" -s 640 2>/dev/null \
+         | { sleep "$PUFFER_SEKUNDEN"; exec cat; } &
+      pid=$!
+   fi
 
-   # Solange die Pipeline läuft: bei geänderten Einstellungen beenden
+   # Solange die Pipeline läuft: bei geänderten Einstellungen beenden; der
+   # Wächter prüft, ob noch Daten zu Asterisk fließen. Bis zu den ersten
+   # Daten gilt zusätzlich der Vorlauf.
+   daten=""
+   grund=""
+   alt=""
+   zuletzt=$start
+   frist=$((STREAM_TIMEOUT_SEKUNDEN + PUFFER_SEKUNDEN))
    while kill -0 "$pid" 2>/dev/null; do
       sleep 2
-      if geaendert; then
-         exit 0
+      geaendert && exit 0
+      jetzt=$(date +%s)
+      neu=$(geschrieben "$pid")
+      if [ -z "$neu" ]; then
+         # /proc nicht lesbar (oder Prozess gerade beendet): kein Wächter
+         if [ -z "$waechter_gemeldet" ] && kill -0 "$pid" 2>/dev/null; then
+            melde "Warnung: /proc/$pid/io nicht lesbar, Wächter für stehende Streams aus"
+            waechter_gemeldet=1
+         fi
+      elif [ "$neu" != "${alt:-0}" ]; then
+         alt=$neu
+         zuletzt=$jetzt
+         letzte_daten=$jetzt
+         frist=$STREAM_TIMEOUT_SEKUNDEN
+         if [ -z "$daten" ]; then
+            daten=1
+            zustand=verbunden
+            verbunden_seit=$jetzt
+            if [ -n "$unterbrochen" ]; then
+               melde "wieder verbunden mit $streamurl, Daten kommen an"
+            else
+               melde "verbunden mit $streamurl, Daten kommen an"
+            fi
+            unterbrochen=""
+            fehlversuche=0
+            status_schreiben
+         fi
+      elif [ $((jetzt - zuletzt)) -ge "$frist" ]; then
+         grund="keine Daten seit $((jetzt - zuletzt)) s"
+         break
       fi
+      [ "$STILLE_SEKUNDEN" -gt 0 ] && stille_pruefen
+      [ $((jetzt - status_zeit)) -ge 10 ] && status_schreiben
    done
+
+   # Ganze Kette beenden, auch ein hängendes mpg123
+   beende_kinder
+   if [ -z "$grund" ]; then
+      fehler=$(tr -d '\r' < "$fehlerdatei" 2>/dev/null | grep -v -e '^[[:space:]]*$' -e '^sox ' | tail -n 1 \
+         | sed 's/^\[[^]]*\] *//; s/^error: //' | cut -c 1-200)
+      if [ -n "$daten" ]; then
+         grund="Verbindung beendet"
+      else
+         grund="keine Verbindung"
+      fi
+      [ -n "$fehler" ] && grund="$grund ($fehler)"
+   fi
+   unterbrochen=1
+   [ -n "$daten" ] || fehlversuche=$((fehlversuche + 1))
 
    [ $(($(date +%s) - start)) -ge "$STABIL_SEKUNDEN" ] && versuch=0
    versuch=$((versuch + 1))
    pause=$(echo $NEUVERSUCH_SEKUNDEN | awk -v n="$versuch" '{print (n <= NF) ? $n : $NF}')
-   echo "telerix-stream: Stream $streamurl nicht erreichbar oder beendet, neuer Versuch in $pause s" >&2
+   zustand=getrennt
+   verbunden_seit=""
+   status_schreiben
+   if [ "$fehlversuche" -le "$MELDE_VERSUCHE" ]; then
+      melde "Stream $streamurl: $grund, neuer Versuch in $pause s"
+   elif [ $((fehlversuche % 10)) -eq 0 ]; then
+      melde "Stream $streamurl: $grund, neuer Versuch in $pause s ($fehlversuche Fehlversuche in Folge; gemeldet wird nur jeder zehnte)"
+   fi
    wait_or_change "$pause"
 done

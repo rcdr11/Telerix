@@ -48,6 +48,15 @@ function run_command(array $argv, int $timeout = 15): array
       if (time() > $deadline) {
          proc_terminate($proc);
          $err .= "\nZeitüberschreitung";
+         /* mpg123 übergeht SIGTERM, solange es auf Daten eines stehenden
+            Streams wartet; proc_close() würde dann ewig warten und den
+            PHP-Prozess blockieren. Nach 2 s daher SIGKILL. */
+         for ($i = 0; $i < 20 && proc_get_status($proc)['running']; $i++) {
+            usleep(100000);
+         }
+         if (proc_get_status($proc)['running']) {
+            proc_terminate($proc, 9);
+         }
          break;
       }
    }
@@ -134,4 +143,48 @@ function codec_label(string $codec): array
       ''             => ['unbekannt', false],
       default        => [$codec, false],
    };
+}
+
+/* ---------- Anrufstatistik (ohne Rufnummern) ---------- */
+
+/* Unter so vielen Sekunden gilt ein Anruf als sehr kurz; viele davon sind
+   ein Hinweis, dass Anrufer nichts hören (Stream stumm) */
+const CALL_SHORT_SECONDS = 30;
+/* Stundenwerte, die älter sind, werden gelöscht */
+const CALL_STATS_KEEP_HOURS = 8 * 24;
+
+/*
+ * Anrufe der letzten $hours Stunden aus der AstDB. Der Dialplan zählt je
+ * Stunde (UTC) unter telerix_anrufe/<JJJJMMTTHH>/ die angenommenen Anrufe
+ * (anzahl), ihre Gesamtdauer (sekunden) und die sehr kurzen (kurz), siehe
+ * asterisk/extensions.conf. Nach einem Update (neuer Container) beginnt die
+ * Zählung von vorn. Liefert null, wenn Asterisk nicht erreichbar ist, sonst
+ * ['calls' => n, 'seconds' => s, 'short' => n].
+ */
+function call_stats(int $hours = 24): ?array
+{
+   $out = asterisk_cli('database show telerix_anrufe');
+   if ($out === null) {
+      return null;
+   }
+   $now = time();
+   $from = gmdate('YmdH', $now - ($hours - 1) * 3600);
+   $old = gmdate('YmdH', $now - CALL_STATS_KEEP_HOURS * 3600);
+   $sum = ['calls' => 0, 'seconds' => 0, 'short' => 0];
+   $expired = [];
+   $map = ['anzahl' => 'calls', 'sekunden' => 'seconds', 'kurz' => 'short'];
+   foreach (preg_split('/\R/', $out) as $line) {
+      if (!preg_match('#^/telerix_anrufe/(\d{10})/(anzahl|sekunden|kurz)\s*:\s*(\d+)\s*$#', $line, $m)) {
+         continue;
+      }
+      if ($m[1] < $old) {
+         $expired[$m[1]] = true;
+      } elseif ($m[1] >= $from) {
+         $sum[$map[$m[2]]] += (int)$m[3];
+      }
+   }
+   foreach (array_keys($expired) as $hour) {
+      asterisk_cli('database deltree telerix_anrufe/' . $hour);
+   }
+   return $sum;
 }

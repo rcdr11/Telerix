@@ -49,6 +49,36 @@ weiter, nur in Mono und 16 kHz (im Test: −25,93 dBFS wie im Stream), und die e
   jeder Stockung einen Aussetzer. Der Ton kommt dadurch 4 s später beim Anrufer an.
 - **Neuversuch nach Abbruch (ab 0.06-mod):** Bricht der Stream ab, verbindet Telerix nach 2 s neu, bei weiteren
   Fehlschlägen nach 5, 10 und dann alle 30 s. Bis 0.05-mod wartete es immer 30 s.
+- **Wächter (ab 0.07-mod):** Kommen 15 s lang keine Daten mehr, verbindet Telerix ebenfalls neu, auch wenn die
+  Verbindung zum Server noch offen ist. Siehe [Wenn der Stream hängt](#wenn-der-stream-hängt).
+
+## Wenn der Stream hängt
+
+Am 1.11. hörten Anrufer eines Servers nur Stille, bis jemand „Asterisk neu starten“ drückte. Der Icecast-Server
+lieferte keine Daten mehr, hielt die Verbindung aber offen. `mpg123` wartete darauf ohne Ende; bis 0.06-mod
+reagierte `telerix-stream` aber nur, wenn sich die Kette beendete. Nachgeprüft mit mpg123 1.33.5 im Container:
+
+- `mpg123 --timeout 5` greift bei einem stehenden Datenstrom **nicht**: Es wartete 120 s, bis der Testserver die
+  Verbindung von sich aus schloss (mit eingebautem HTTP und mit `--network internal` gleich).
+- In diesem Zustand übergeht `mpg123` sogar SIGTERM. Nur SIGKILL beendet es.
+
+Deshalb gibt es ab 0.07-mod einen **Wächter**, der nicht von mpg123 abhängt. Er misst, ob am Ende der Kette, direkt
+vor Asterisk, noch Daten fließen (Schreibzähler des letzten Glieds in `/proc/<pid>/io`, nur BusyBox nötig). Fließen
+`STREAM_TIMEOUT_SEKUNDEN` = 15 s lang keine Bytes, beendet er die ganze Kette mit SIGKILL (mpg123, sox, mbuffer,
+auch Enkelprozesse) und verbindet neu, nach denselben Pausen wie bei einem Abbruch. Beim Verbinden kommt der Vorlauf
+zur Frist dazu. `mpg123` bekommt trotzdem `--timeout 15` mit; das hilft beim Verbindungsaufbau.
+
+Weil mbuffer noch einige Sekunden Vorrat hat, hören Anrufer bei einem stehenden Stream etwa 20 bis 25 s Stille,
+dann geht es mit dem neu verbundenen Stream weiter, sobald der Server wieder liefert.
+
+Außerdem misst `telerix-stream` alle 5 s die Spitze des Tons. Bleibt sie 2 Minuten lang unter −60 dBFS (digitale
+Stille, z. B. Sender läuft, aber das Mischpult ist stumm), steht eine Warnung im Protokoll und auf der Startseite.
+Neu verbunden wird deswegen nicht, der Stream läuft ja. Die Einstellungen stehen oben in `asterisk/stream.sh`
+(`STREAM_TIMEOUT_SEKUNDEN`, `STILLE_DB`, `STILLE_SEKUNDEN`; `STILLE_SEKUNDEN=0` schaltet die Prüfung ab).
+
+Was im Protokoll steht und was die Startseite zeigt: [Konfiguration → Protokolle](konfiguration.md#protokolle).
+Geprüft wird das mit `tests/stream-test.sh` (Testserver, der nach 6 s nichts mehr sendet, die Verbindung aber offen
+hält).
 
 **Leveler, Begrenzer und Lautstärke sind drei verschiedene Dinge.** Der Leveler (Klangprofil) verringert die
 Dynamik innerhalb des Signals: Leise Stellen werden lauter, laute leiser. Der Begrenzer ist nur eine harte Obergrenze

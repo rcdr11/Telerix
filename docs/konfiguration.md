@@ -40,6 +40,7 @@ ließe sich im Webinterface nicht mehr korrigieren:
 | `TELERIX_UPDATE_REPO` | GitHub-Repository für die Update-Prüfung, z. B. `rcdr11/Telerix`. Setzt `install.sh` automatisch. |
 | `TELERIX_TRUSTED_PROXIES` | Adresse(n) des Reverse-Proxys, siehe [Reverse-Proxy](#reverse-proxy-davor-setzen) |
 | `TELERIX_COOKIE_SECURE` | `1` hinter einem HTTPS-Proxy: Das Session-Cookie wird dann nur über HTTPS gesendet. |
+| `TELERIX_SIP_ALLOW` | SIP nur von diesen Netzen annehmen (ab 0.07-mod, Standard leer = von überall), siehe [Ports und Firewall](#ports-und-firewall) |
 
 **Im Webinterface oder über `.env`** gehen diese. Ist die Variable in `.env` gesetzt, hat sie Vorrang: Das Feld im
 Webinterface ist dann gesperrt und zeigt den Wert aus `.env`. Wer lieber im Webinterface einstellt, löscht die
@@ -52,8 +53,8 @@ Zeile aus `.env` und führt `docker compose up -d` aus.
 | `TELERIX_EXTERNAL_ADDRESS` | Öffentliche Adresse | Öffentliche IPv4-Adresse oder Hostname für SIP/RTP, siehe [Kein Ton beim Anrufer](#kein-ton-beim-anrufer) |
 | `TELERIX_TESTPHONE_PASSWORD` | Testtelefon | Legt ein Testtelefon `testphone` an (mind. 12 Zeichen aus `A-Z a-z 0-9 . _ + -`). Extension 100 spielt Piepton und Stream. |
 
-Ungültige Werte bei `TELERIX_EXTERNAL_ADDRESS`, `TELERIX_TESTPHONE_PASSWORD` und `TELERIX_TRUSTED_PROXIES`
-verhindern den Start, ungültige Tonwerte werden ignoriert. Die Meldung dazu zeigt `docker compose logs`.
+Ungültige Werte bei `TELERIX_EXTERNAL_ADDRESS`, `TELERIX_TESTPHONE_PASSWORD`, `TELERIX_TRUSTED_PROXIES` und
+`TELERIX_SIP_ALLOW` verhindern den Start, ungültige Tonwerte werden ignoriert. Die Meldung dazu zeigt `docker compose logs`.
 
 ## Icecast-Status auf der Startseite
 
@@ -98,7 +99,9 @@ Die Installation ist dieselbe wie auf dem eigenen Rechner (`./install.sh`). Zus�
 1. **Webinterface nicht direkt freigeben.** Es lauscht nur auf `127.0.0.1:8080`. Für den Zugriff von außen
    einen Reverse-Proxy mit HTTPS (und am besten Basic-Auth) davorsetzen, siehe unten.
 2. **Kein Ton beim Anrufer:** öffentliche Adresse eintragen, siehe unten.
-3. **Updates** mit `./update.sh`, siehe [Sicherung und Updates](sicherung-und-updates.md).
+3. **Ports und Firewall:** SIP und RTP nur für den Anbieter öffnen, siehe unten.
+4. **Updates** mit `./update.sh`, siehe [Sicherung und Updates](sicherung-und-updates.md).
+5. **Protokolle** begrenzen, auch für eigene Dienste, siehe [Protokolle](#protokolle).
 
 ### Reverse-Proxy davorsetzen
 
@@ -199,6 +202,116 @@ weiß dann nicht, wohin er das Audio senden soll.
 Auf dem eigenen Rechner zu Hause ist das meist nicht nötig. Asterisk meldet sich beim Anbieter von innen an, und
 eingehende Anrufe kommen über diese Verbindung zurück.
 
+### Ports und Firewall
+
+| Port | Wofür | Wer muss heran? |
+| --- | --- | --- |
+| 5060/udp | SIP (Anmeldung beim Anbieter, eingehende Anrufe) | nur der SIP-Anbieter |
+| 10000–10099/udp | RTP (Ton der Anrufe, `rtp.conf`) | nur der SIP-Anbieter |
+| 8080/tcp | Webinterface | niemand von außen: lauscht nur auf `127.0.0.1`; von außen über einen [Reverse-Proxy](#reverse-proxy-davorsetzen) mit HTTPS, am besten auch dort nur für die eigenen Adressen |
+
+Ein offener Port 5060 wird binnen Minuten von **SIP-Scannern** aus dem ganzen Internet gefunden, die Anmeldedaten
+durchprobieren. Telerix weist sie ab (keine anonymen Anrufe, nur bekannte Gegenstellen), aber sie kosten Rechenzeit
+und füllen das Protokoll. Darum die Ports in der Firewall des Servers bzw. des Cloud-Anbieters **nur für die
+IP-Bereiche des SIP-Anbieters** öffnen. Für sipgate sind das laut
+[sipgate-Hilfe](https://help.sipgate.de/trunking/en/was-sind-die-ip-und-port-bereiche-von-sipgate) derzeit
+`217.10.64.0/20`, `217.116.112.0/20` und `212.9.32.0/19`. Die Bereiche können sich ändern, bitte dort nachsehen.
+
+Beispiel mit `ufw` (Ubuntu). Achtung: Von Docker veröffentlichte Ports umgehen `ufw`. Am sichersten ist deshalb die
+Firewall des Cloud-Anbieters oder die Kette `DOCKER-USER`:
+
+```sh
+# DOCKER-USER: alles an 5060 und 10000-10099/udp verwerfen, was nicht von sipgate kommt
+for net in 217.10.64.0/20 217.116.112.0/20 212.9.32.0/19; do
+   iptables -I DOCKER-USER -p udp -s "$net" -m multiport --dports 5060,10000:10099 -j RETURN
+done
+iptables -A DOCKER-USER -p udp -m multiport --dports 5060,10000:10099 -j DROP
+```
+
+(Die Regeln der Kette `DOCKER-USER` gehen beim Neustart verloren, außer man sichert sie, z. B. mit
+`iptables-persistent`. Die `RETURN`-Regeln müssen vor der `DROP`-Regel stehen.)
+
+**Zusätzlich in Asterisk (optional, ab 0.07-mod):** `TELERIX_SIP_ALLOW` in `.env` lässt Asterisk SIP-Anfragen von
+anderen Adressen abweisen, bevor sie geprüft werden (PJSIP-ACL). localhost und die privaten Netze (`10.0.0.0/8`,
+`172.16.0.0/12`, `192.168.0.0/16`, für Docker und ein Testtelefon im Heimnetz) bleiben immer erlaubt. Standard ist
+leer, dann gilt wie bisher keine Einschränkung.
+
+```sh
+TELERIX_SIP_ALLOW=217.10.64.0/20,217.116.112.0/20,212.9.32.0/19
+```
+
+Danach `docker compose up -d`. Im Protokoll steht beim Start `SIP nur von ...`. Abgewiesene Anfragen fasst Telerix
+stündlich zusammen („von der ACL abgewiesen“). Die ACL ersetzt die Firewall nicht: Die Pakete erreichen den Server
+trotzdem. Und sie wirkt nur, wenn Asterisk die echte Absenderadresse sieht. Mit dem Userland-Proxy von Docker
+(z. B. Docker Desktop, rootless Docker) kommen alle Pakete scheinbar vom Docker-Gateway (privates Netz) und werden
+durchgelassen.
+
+## Protokolle
+
+Alles, was Telerix meldet, steht im Container-Protokoll:
+
+```sh
+docker compose logs --since 1h telerix                 # letzte Stunde
+docker compose logs -f telerix                         # laufend mitlesen
+docker compose logs --since 24h telerix | grep -E "telerix-stream|Anruf"   # Wartemusik und Anrufe
+```
+
+Was dort steht (ab 0.07-mod):
+
+- **Wartemusik** (`telerix-stream:`): Verbindungsaufbau, jeder Abbruch mit Grund („keine Daten seit 15 s“,
+  „Verbindung beendet“, „keine Verbindung (HTTP-Fehler …)“) und „wieder verbunden“, außerdem eine Warnung, wenn
+  der Stream länger als 2 Minuten nur Stille liefert. Bei längerem Ausfall wird nach 5 Fehlversuchen nur noch
+  jeder zehnte gemeldet. Siehe [Tonqualität](tonqualitaet.md#wenn-der-stream-hängt).
+- **Anrufe** ohne Rufnummer: beim Annehmen der Codec, beim Auflegen Dauer, Grund und wer aufgelegt hat, z. B.
+  `Anruf 1794317000.12 beendet: Dauer 1834 s, Grund 0 (ohne Angabe), aufgelegt von Anrufer`. Beide Zeilen tragen
+  dieselbe Kennung. „aufgelegt von Telerix (aufgelegt oder neu gestartet)“ heißt: über „Alle Anrufer auflegen“,
+  „Asterisk neu starten“ oder ein Update. Legt der Anrufer normal auf, meldet Asterisk 22 den Grund 0 oder 16
+  (normal); andere Werte sind [Q.850-Codes](https://www.voip-info.org/asterisk-variable-hangupcause/), z. B. 38
+  oder 41 bei Netzstörungen.
+- **SIP-Scanner** einmal je Stunde zusammengefasst: Anzahl der abgewiesenen Anfragen und ungültigen Pakete, Gründe
+  und die häufigsten Absender. Einzelne Meldungen dazu gibt es nicht mehr. Fehler bei der Anmeldung beim eigenen
+  Anbieter (z. B. falsches Passwort) erscheinen dagegen wie bisher sofort und einzeln. Taucht die Adresse des
+  eigenen Anbieters in der Zusammenfassung auf, stimmt etwas mit der Einrichtung nicht.
+- Zugriffe auf das Webinterface (nginx), ohne die Abfragen des Docker-Healthchecks.
+
+Die Startseite zeigt unter **Wartemusik**, wann zuletzt Daten vom Stream ankamen, warnt, wenn das länger als 30 s her
+ist oder der Stream nur Stille liefert, und zählt die Anrufe der letzten 24 Stunden mit Durchschnittsdauer und Anteil
+der Anrufe unter 30 s. Viele sehr kurze Anrufe sind ein Hinweis, dass Anrufer nichts hören.
+
+**Größe begrenzen.** Docker hebt das Protokoll eines Containers sonst unbegrenzt auf (ein Server kam so auf 4,5 GB in
+18 Tagen). Für Telerix ist ab 0.07-mod in `docker-compose.yml` festgelegt: höchstens 5 Dateien zu 10 MB. Das gilt
+nach dem Update bzw. nach `docker compose up -d`; das alte, große Protokoll verschwindet dabei mit dem alten
+Container. Asterisk schreibt keine eigene Datei `messages.log` mehr (sie enthielt alles doppelt und wuchs ebenfalls
+ohne Grenze, weil im Container kein `logrotate` läuft).
+
+**Eigene Dienste** in `docker-compose.override.yml` (z. B. ein eigener nginx-Proxy) bekommen diese Begrenzung nicht
+automatisch. Dort genauso eintragen:
+
+```yaml
+services:
+  proxy:
+    image: nginx:1.30-alpine
+    # ... wie oben ...
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+```
+
+Für alle Container auf dem Server auf einmal geht es auch in `/etc/docker/daemon.json` (gilt nur für neu erzeugte
+Container, danach `systemctl restart docker` und die Container neu erzeugen):
+
+```json
+{ "log-driver": "json-file", "log-opts": { "max-size": "10m", "max-file": "5" } }
+```
+
+Wie groß die Protokolle gerade sind:
+
+```sh
+docker ps -q | xargs docker inspect -f '{{.Name}} {{.LogPath}}' | while read n p; do echo "$n $(sudo du -h "$p" | cut -f1)"; done
+```
+
 ## Wo liegen die Daten?
 
 Alles Veränderliche liegt im Docker-Volume `telerix_telerix-data` (im Container `/var/lib/telerix`):
@@ -206,9 +319,12 @@ Alles Veränderliche liegt im Docker-Volume `telerix_telerix-data` (im Container
 | Verzeichnis | Inhalt |
 | --- | --- |
 | `config/` | Admin-Zugang (Passwort-Hash), SIP-Zugang, Einstellungen aus dem Webinterface (`settings.json`) |
-| `state/` | Login-Sperren, Ergebnis der Update-Prüfung |
+| `state/` | Login-Sperren, Ergebnis der Update-Prüfung, Zwischenspeicher für Icecast-Status, Qualität des Streams und Hörprobe (feste Größe) |
 | `uploads/` | hochgeladene Namenslisten und Ansage (zufällige Dateinamen) |
 | `asterisk/` | aus den Einstellungen erzeugte Dateien für Asterisk und die Tonaufbereitung, Stream-Adresse |
 | `sounds/` | umgewandelte Ansage |
+
+Nicht im Volume (nach einem Update neu): der Zustand der Wartemusik (`/run/telerix-stream/status`) und die
+Anrufstatistik (AstDB von Asterisk).
 
 `docker compose down` lässt das Volume bestehen. `docker compose down -v` löscht es mit allen Einstellungen.

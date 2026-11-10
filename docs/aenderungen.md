@@ -78,6 +78,31 @@ der Container läuft mit `cap_drop: ALL` (plus den zum Start nötigen Fähigkeit
 - Ab 0.06-mod: Icecast-Status auf der Startseite mit Grund bei Fehlern, eigener Statusadresse, Erkennung von
   AzuraCast, nur dem eigenen Mountpoint und Ausblenden; 30 s zwischengespeichert, damit die Startseite nicht bei
   jedem Aufruf auf den Server wartet
+- **Ab 0.07-mod: Wächter für die Wartemusik.** Liefert der Stream 15 s lang keine Daten mehr (auch wenn der Server
+  die Verbindung offen hält), beendet `telerix-stream` die ganze Kette hart und verbindet neu. Bisher konnte ein
+  hängender Stream Anrufer tagelang Stille hören lassen, bis Asterisk neu gestartet wurde; `mpg123 --timeout`
+  greift in diesem Fall nicht und mpg123 übergeht sogar SIGTERM. Siehe
+  [Wenn der Stream hängt](tonqualitaet.md#wenn-der-stream-hängt).
+- Ab 0.07-mod: Jeder Abbruch und jede Neuverbindung der Wartemusik mit Grund und Zeit im Protokoll; Warnung bei
+  2 Minuten digitaler Stille (ohne Neuverbindung); bei langem Ausfall nur noch jeder zehnte Fehlversuch im Protokoll
+- Ab 0.07-mod: Startseite zeigt unter *Wartemusik*, wann zuletzt Daten vom Stream ankamen, mit Warnung nach 30 s
+  ohne Daten oder bei Stille, und eine Anrufstatistik der letzten 24 Stunden (Anzahl, Durchschnittsdauer, Anteil
+  unter 30 s, Hinweis bei auffällig vielen kurzen Anrufen)
+- Ab 0.07-mod: Beim Auflegen eine Zeile im Protokoll mit Kennung, Dauer, Grund (`HANGUPCAUSE`) und wer aufgelegt hat,
+  ohne Rufnummer; die Codec-Zeile beim Annehmen trägt dieselbe Kennung
+- **Ab 0.07-mod: Protokolle begrenzt.** Docker-Log des Containers höchstens 5 × 10 MB (`docker-compose.yml`), keine
+  `messages.log` und `queue_log` von Asterisk mehr (alles doppelt und ohne Rotation, bis 2,8 GB). Meldungen von
+  SIP-Scannern (abgewiesene Anfragen, ungültige Pakete) werden stündlich zusammengefasst
+  (`docker/asterisk-log.awk`), Fehler beim eigenen Anbieter bleiben einzeln sichtbar. pjproject schreibt den Inhalt
+  verworfener Pakete nicht mehr als NOTICE ins Log, und Fehler von pjproject (Stufe 1) erscheinen wieder. nginx
+  protokolliert den Healthcheck nicht mehr. Reste abgebrochener Hörproben und Temp-Dateien werden beim Start entfernt.
+  Siehe [Protokolle](konfiguration.md#protokolle).
+- Ab 0.07-mod: Optionale ACL `TELERIX_SIP_ALLOW` (SIP nur von den Netzen des Anbieters), Standard aus; Doku zu Ports
+  und Firewall, siehe [Ports und Firewall](konfiguration.md#ports-und-firewall)
+- Ab 0.07-mod: Die harmlose Meldung „no local system nameservers configured“ erscheint als Hinweis statt als ERROR
+- Ab 0.07-mod: Das Webinterface wartet bei einem hängenden Stream nicht mehr ewig auf mpg123 (Qualität des
+  Streams, Hörprobe): nach der Zeitüberschreitung wird hart beendet
+- Ab 0.07-mod: Neue Tests `tests/stream-test.sh` (hängender und stiller Stream) und `tests/log-test.sh`
 
 ## Bekannte Einschränkungen
 
@@ -87,5 +112,7 @@ der Container läuft mit `cap_drop: ALL` (plus den zum Start nötigen Fähigkeit
   Test nicht ab.
 - Die Login-Sperre zählt je Client-IP. Mit Docker Desktop oder hinter einem Proxy ohne `TELERIX_TRUSTED_PROXIES`
   sehen alle Zugriffe gleich aus, die Sperre trifft dann alle gemeinsam.
-- Asterisk meldet beim Start `There are no local system nameservers configured, resorting to system resolution`.
-  Das liegt am Docker-internen DNS und ist unkritisch.
+- Asterisk ermittelt unter Alpine (musl) die DNS-Server nicht selbst und nutzt den Resolver des Systems. Das ist
+  unkritisch; ab 0.07-mod steht dazu beim Start ein Hinweis im Protokoll statt der Fehlermeldung
+  `There are no local system nameservers configured`. Abschalten lässt sich die Prüfung in Asterisk nicht.
+- Anrufstatistik und Zustand der Wartemusik liegen nicht im Datenvolume und beginnen nach einem Update von vorn.

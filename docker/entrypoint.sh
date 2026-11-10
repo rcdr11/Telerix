@@ -26,6 +26,16 @@ find "$D/asterisk" "$D/sounds" -type f -exec chmod 0640 {} +
 install -d -o telerix -g telerix -m 0700 /run/telerix /run/telerix/sessions
 install -d -o asterisk -g asterisk -m 0755 /run/asterisk
 install -d -o root -g root -m 0755 /run/php-fpm
+# Zustand der Wartemusik: schreibt telerix-stream (asterisk), liest das
+# Webinterface (Gruppe telerix)
+install -d -o asterisk -g telerix -m 0750 /run/telerix-stream
+
+# Reste von abgebrochenen Vorgängen entfernen (sonst nie aufgeräumt):
+# Zwischendateien der Hörprobe, Pegelmessung und Wiederherstellung im
+# Datenvolume, Arbeitsverzeichnisse von telerix-stream und Temp-Dateien von
+# nginx (Uploads) und PHP
+find "$D/state" -maxdepth 1 -type f \( -name '.hoerprobe-*' -o -name '.pegel-*' -o -name '.restore-*' -o -name '.tmp-*' \) -delete
+rm -rf /tmp/telerix-stream.* /tmp/nginx-* /tmp/php*
 
 # Von pjsip.conf/musiconhold eingebundene Dateien müssen existieren
 for f in pjsip_trunk.conf stream.url; do

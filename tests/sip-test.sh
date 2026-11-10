@@ -326,6 +326,13 @@ info "Aufnahme ab Sekunde $ANSAGE_SKIP: $CALL_STATS"
 check "Begrüßungsansage wird gespielt" 'grep -q "Playback!tx/willkommen-gottesdienst" <<<"$CALL_APP"'
 check "Codec-Diagnose im Protokoll, ohne Rufnummer" '$DC logs --since "$START" telerix 2>/dev/null | grep -q "Codec: angeboten und unterstützt (g722|alaw), gewählt (g722)"'
 check "Keine Rufnummer in der Diagnose" '! $DC logs --since "$START" telerix 2>/dev/null | grep "Codec:" | grep -q "4711\|anruf"'
+# Der Anbieter legt nach der Aufnahme auf; Zeile beim Auflegen und Statistik
+for _ in $(seq 1 15); do [ "$(tx_pjsip_channels)" = 0 ] && break; sleep 1; done
+ENDE="$($DC logs --since "$START" telerix 2>/dev/null | grep "beendet: Dauer")"
+info "Beim Auflegen: $(sed 's/.*Anruf /Anruf /' <<<"$ENDE" | head -1)"
+check "Auflegen im Protokoll: Dauer, Grund, Anrufer hat aufgelegt" 'grep -Eq "Anruf [0-9.]+ beendet: Dauer (4[0-9]|5[0-9]) s, Grund (0 \(ohne Angabe\)|16 \(normal\)), aufgelegt von Anrufer" <<<"$ENDE"'
+check "Keine Rufnummer beim Auflegen" '! grep -q "4711" <<<"$ENDE"'
+check "Anrufstatistik auf der Startseite (letzte 24 Stunden)" 'startseite | grep -q "Anrufe in den letzten 24 Stunden: [1-9]"'
 check "Keine Meldung 'does not exist'" '! $DC logs --since "$START" telerix 2>/dev/null | grep -q "does not exist"'
 check "Genau ein eingehender Anruf bei Telerix" '[ "$CALL_CHANNELS" = 1 ]'
 info "Aufnahme kürzer als der Anruf um $CALL_MISSING s (davon 2 s Wait() im Dialplan ohne Ton)"

@@ -32,6 +32,7 @@ services:
       TELERIX_TRUSTED_PROXIES: ${TELERIX_TRUSTED_PROXIES:-}
       TELERIX_COOKIE_SECURE: ${TELERIX_COOKIE_SECURE:-0}
       TELERIX_TESTPHONE_PASSWORD: ${TELERIX_TESTPHONE_PASSWORD:-}
+      TELERIX_SIP_ALLOW: ${TELERIX_SIP_ALLOW:-}
       TELERIX_AUDIO_ANHEBUNG_DB: ${TELERIX_AUDIO_ANHEBUNG_DB:-}
       TELERIX_AUDIO_PUFFER_SEKUNDEN: ${TELERIX_AUDIO_PUFFER_SEKUNDEN:-}
     secrets:
@@ -52,6 +53,14 @@ services:
       - KILL
     security_opt:
       - no-new-privileges:true
+    # Container-Log begrenzen: höchstens 5 Dateien zu 10 MB, die älteste wird
+    # gelöscht (ohne diese Angabe wächst es ohne Grenze, bis 4,5 GB in 18
+    # Tagen). Gilt nach "docker compose up -d", also auch nach update.sh.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
 
 secrets:
   telerix_admin_password:

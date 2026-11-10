@@ -105,8 +105,15 @@ function hoerprobe_levels(string $roh, string $src, array $v): ?array
  */
 function hoerprobe_create(array $v): void
 {
+   /* Zwischendateien abgebrochener Hörproben (z. B. PHP-Prozess beendet)
+      entfernen; laufende sind jünger als eine Stunde */
+   foreach (glob(data_path('state/.hoerprobe-*')) ?: [] as $f) {
+      if (filemtime($f) < time() - 3600) {
+         @unlink($f);
+      }
+   }
    /* Name muss zu stream.sh passen: state/.hoerprobe-<hex>.au */
-   $roh = data_path('state/.hoerprobe-' . bin2hex(random_bytes(8)) . '.au');
+   $roh =data_path('state/.hoerprobe-' . bin2hex(random_bytes(8)) . '.au');
    [, $raw, $err] = run_command([
       '/usr/local/bin/telerix-stream', '--hoerprobe', (string)HOERPROBE_SEKUNDEN,
       $v['audio_processing'] ? 'an' : 'aus', (string)$v['audio_input_db'], (string)$v['audio_highpass_hz'],

@@ -15,6 +15,10 @@
  *          für den Eingangspegel.
  * /niedrig /srv/niedrig.mp3 (dieselbe Sprache mit 64 kbit/s) endlos ohne
  *          Stockungen, für den Hinweis zur Bitrate.
+ * /haengt  /srv/test.mp3, hört aber nach 6 s auf zu senden und hält die
+ *          Verbindung 60 s lang offen – wie ein Icecast-Server, dessen
+ *          Quelle stehen geblieben ist. Für den Wächter (tests/stream-test.sh).
+ * /stille  /srv/stille.mp3 (digitale Stille) endlos, für die Stille-Warnung.
  * Jede Verbindung beginnt am Anfang der Datei.
  *
  * Nachbildung von AzuraCast für den Icecast-Status auf der Startseite:
@@ -36,12 +40,13 @@ if ($path === '/listen/gemeinde/status-json.xsl') {
 if ($path === '/listen/gemeinde/live') {
     $path = '/live';
 }
-if (!in_array($path, ['/live', '/steady', '/musik', '/abbruch', '/heiss', '/niedrig'], true)) {
+if (!in_array($path, ['/live', '/steady', '/musik', '/abbruch', '/heiss', '/niedrig', '/haengt', '/stille'], true)) {
     http_response_code(404);
     return true;
 }
 $bursty = $path === '/live';
 $limit = $path === '/abbruch' ? 8.0 : INF;
+$stall = $path === '/haengt' ? 6.0 : INF;
 
 header('Content-Type: audio/mpeg');
 header('Cache-Control: no-cache');
@@ -54,6 +59,7 @@ $data = file_get_contents(match ($path) {
     '/musik' => '/srv/musik.mp3',
     '/heiss' => '/srv/heiss.mp3',
     '/niedrig' => '/srv/niedrig.mp3',
+    '/stille'  => '/srv/stille.mp3',
     default  => '/srv/test.mp3',
 });
 $len = strlen($data);
@@ -67,6 +73,14 @@ while (!connection_aborted()) {
     $elapsed = microtime(true) - $start;
     if ($elapsed >= $limit) {
         break;
+    }
+    // Nichts mehr senden, Verbindung aber offen halten
+    if ($elapsed >= $stall) {
+        if ($elapsed >= 60) {
+            break;
+        }
+        usleep(200000);
+        continue;
     }
     // Stockung: in den letzten 2,5 s jedes 10-s-Fensters nichts senden
     if ($bursty && fmod($elapsed, 10.0) >= 7.5) {

@@ -4,6 +4,7 @@
    $proxies = $env('TELERIX_TRUSTED_PROXIES');
    $secure = $env('TELERIX_COOKIE_SECURE') === '1';
    $repo = $env('TELERIX_UPDATE_REPO');
+   $sipAllow = $env('TELERIX_SIP_ALLOW');
 ?>
 <div class="w3-panel w3-light-gray" style="border-radius:5px; color:#333">
   <ul class="w3-ul">
@@ -14,6 +15,9 @@
        <span class="hint">Eingeschaltet ohne HTTPS w&auml;re keine Anmeldung mehr m&ouml;glich.</span></li>
     <li><b>Update-Pr&uuml;fung</b> (TELERIX_UPDATE_REPO): <?= $repo === '' ? 'nicht eingerichtet' : h($repo) ?><br />
        <span class="hint">Setzt install.sh automatisch.</span></li>
+    <li><b>SIP nur von</b> (TELERIX_SIP_ALLOW): <?= $sipAllow === '' ? 'nicht gesetzt (SIP von allen Adressen)' : h($sipAllow) . ' und privaten Netzen' ?><br />
+       <span class="hint">Asterisk weist SIP-Anfragen von anderen Adressen ab. Netze des Anbieters siehe
+       docs/konfiguration.md.</span></li>
     <li><b>Ports</b> f&uuml;r SIP/RTP und weitere Dienste: in docker-compose.override.yml</li>
     <li><b>Passwort vergessen:</b> &uuml;ber secrets/admin_password.txt, siehe docs/konfiguration.md</li>
   </ul>

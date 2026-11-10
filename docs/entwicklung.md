@@ -66,9 +66,13 @@ tests/sip-test.sh      # nachgebildeter SIP-Anbieter: Ansage (16/8 kHz), Anrufe,
                        # Begrenzer, Präsenz, Eingangspegel, Aussetzer, Umrechnung in Asterisk
 tests/ui-test.sh       # Browser (Playwright): Schieberegler, Hauptschalter, Hörprobe mit Ladebalken und Pegeln,
                        # Aktualisierung der Startseite
+tests/stream-test.sh   # Wächter der Wartemusik: Server sendet nicht mehr, hält die Verbindung offen; kein Stream;
+                       # digitale Stille; Anzeige auf der Startseite (etwa 5 min)
+tests/log-test.sh      # Log-Rotation, keine messages.log, Zusammenfassung der SIP-Scanner, Healthcheck nicht im
+                       # nginx-Log, Aufräumen beim Start (startet Telerix einmal neu)
 ```
 
-**Achtung:** `smoke-test.sh`, `sip-test.sh` und `ui-test.sh` überschreiben Stream-Adresse, SIP-Daten, Ansage und Nummernliste
+**Achtung:** `smoke-test.sh`, `sip-test.sh`, `ui-test.sh` und `stream-test.sh` überschreiben Stream-Adresse, SIP-Daten, Ansage und Nummernliste
 mit Testwerten.
 Vorher eine Sicherung herunterladen oder auf einer Testinstallation laufen lassen.
 

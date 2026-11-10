@@ -79,7 +79,7 @@ function stream_info(string $url): array
       return $cache['info'];
    }
    require_once __DIR__ . '/asterisk.php';
-   [, , $err] = run_command(['mpg123', '-t', '-n', '20', '-v', '--', $url], 10);
+   [, , $err] = run_command(['mpg123', '--timeout', '8', '-t', '-n', '20', '-v', '--', $url], 10);
    if (preg_match('/^MPEG (?:[0-9.]+) L (I{1,3}) (cbr|vbr|abr)([0-9]*) ([0-9]+) (\S+)/m', $err, $m)) {
       $info = [
          'bitrate' => $m[3] === '' ? null : (int)$m[3],
@@ -263,4 +263,98 @@ function icecast_rows(array $stats, string $streamUrl): array
       }
    }
    return $own ? ['rows' => $own, 'own' => true] : ['rows' => $rows, 'own' => false];
+}
+
+/* ---------- Zustand der Wartemusik (Wächter in asterisk/stream.sh) ---------- */
+
+/* Vom Wartemusik-Prozess geschrieben (Verzeichnis legt der Entrypoint an) */
+const STREAM_WATCH_FILE = '/run/telerix-stream/status';
+/* So lange ohne Daten vom Stream, dann Warnung auf der Startseite */
+const STREAM_WATCH_WARN_SECONDS = 30;
+/* So lange ohne Lebenszeichen des Wartemusik-Prozesses (er schreibt
+   mindestens alle 10 s, beim Warten auf den nächsten Versuch bis zu 30 s) */
+const STREAM_WATCH_STALE_SECONDS = 60;
+/* So lange digitale Stille, dann Warnung (wie STILLE_SEKUNDEN in stream.sh) */
+const STREAM_WATCH_SILENCE_SECONDS = 120;
+
+/*
+ * Zustand laut asterisk/stream.sh oder null, wenn (noch) keiner vorliegt:
+ * ['state' => start|verbinde|verbunden|getrennt|kein_stream,
+ *  'reason' => Grund des letzten Abbruchs, 'last_data', 'connected_since',
+ *  'silence_since', 'updated' => Unix-Zeit oder null]
+ */
+function stream_watch_status(): ?array
+{
+   $raw = @file_get_contents(STREAM_WATCH_FILE);
+   if ($raw === false || $raw === '') {
+      return null;
+   }
+   $v = [];
+   foreach (preg_split('/\R/', $raw) as $line) {
+      if (preg_match('/^([a-z_]+)=(.*)$/', $line, $m)) {
+         $v[$m[1]] = $m[2];
+      }
+   }
+   $time = fn(string $k): ?int => isset($v[$k]) && preg_match('/^[0-9]+$/', $v[$k]) === 1 ? (int)$v[$k] : null;
+   return [
+      'state' => $v['zustand'] ?? '',
+      'reason' => $v['grund'] ?? '',
+      'last_data' => $time('letzte_daten'),
+      'connected_since' => $time('verbunden_seit'),
+      'silence_since' => $time('stille_seit'),
+      'updated' => $time('aktualisiert'),
+   ];
+}
+
+/* "12 s", "4 min", "2 h 5 min", "3 Tagen" (für "vor ..." und "seit ...") */
+function duration_text(int $s): string
+{
+   $s = max(0, $s);
+   if ($s < 120) {
+      return "$s s";
+   }
+   if ($s < 3600) {
+      return intdiv($s, 60) . ' min';
+   }
+   if ($s < 2 * 86400) {
+      $m = intdiv($s % 3600, 60);
+      return intdiv($s, 3600) . ' h' . ($m ? " $m min" : '');
+   }
+   return intdiv($s, 86400) . ' Tagen';
+}
+
+/*
+ * Bewertung für die Startseite: ['level' => 'ok'|'warn'|'info'|'none',
+ * 'text' => Satz, 'detail' => Zusatz oder ''] (Klartext, noch nicht maskiert).
+ */
+function stream_watch_summary(?array $st, int $now): array
+{
+   if ($st === null) {
+      return ['level' => 'info', 'text' => 'Noch kein Zustand der Wartemusik bekannt (startet Asterisk gerade?).', 'detail' => ''];
+   }
+   if ($st['state'] === 'kein_stream') {
+      return ['level' => 'none', 'text' => '', 'detail' => ''];
+   }
+   $reason = $st['reason'] !== '' ? 'Letzter Abbruch: ' . $st['reason'] . '.' : '';
+   if ($st['updated'] === null || $now - $st['updated'] > STREAM_WATCH_STALE_SECONDS) {
+      $ago = $st['updated'] === null ? '' : ' seit ' . duration_text($now - $st['updated']);
+      return ['level' => 'warn', 'text' => "Der Wartemusik-Prozess meldet sich$ago nicht mehr. Bitte „Asterisk neu starten“.",
+         'detail' => $reason];
+   }
+   $last = $st['last_data'];
+   if ($last === null || $now - $last > STREAM_WATCH_WARN_SECONDS) {
+      $since = $last === null ? 'Es kommen keine Daten vom Stream an' : 'Seit ' . gmdate('H:i', $last) . ' UTC (vor '
+         . duration_text($now - $last) . ') kommen keine Daten vom Stream an';
+      $doing = $st['state'] === 'verbunden' ? '' : ' Telerix versucht, neu zu verbinden.';
+      return ['level' => 'warn', 'text' => "$since.$doing Anrufer hören solange Stille.", 'detail' => $reason];
+   }
+   if ($st['silence_since'] !== null && $now - $st['silence_since'] >= STREAM_WATCH_SILENCE_SECONDS) {
+      return ['level' => 'warn', 'text' => 'Der Stream liefert seit ' . gmdate('H:i', $st['silence_since']) . ' UTC (vor '
+         . duration_text($now - $st['silence_since']) . ') nur Stille. Läuft die Übertragung?', 'detail' => ''];
+   }
+   $text = 'Stream läuft, letzte Daten vor ' . duration_text($now - $last);
+   if ($st['connected_since'] !== null) {
+      $text .= ', verbunden seit ' . duration_text($now - $st['connected_since']);
+   }
+   return ['level' => 'ok', 'text' => "$text.", 'detail' => $reason];
 }

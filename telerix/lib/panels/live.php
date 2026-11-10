@@ -15,7 +15,48 @@
       ? icecast_status($streamUrl, $ice['icecast_status_url']) : null;
    $callers = asterisk_callers();
    $entries = $callers ? numbers_all() : [];
+   /* Wächter der Wartemusik und Anrufstatistik der letzten 24 Stunden */
+   $watch = $streamUrl !== '' ? stream_watch_summary(stream_watch_status(), time()) : ['level' => 'none'];
+   $stats = call_stats(24);
 ?>
+  <!-- Wartemusik begin -->
+  <div class="w3-panel w3-card-4 w3-blue">
+  <h3 style="color: #ffffff">Wartemusik</h3>
+<?php if ($watch['level'] === 'warn'): ?>
+  <div class="w3-panel w3-pale-red w3-leftbar w3-border-red" style="border-radius:5px" id="stream-warnung">
+    <p><b>Achtung:</b> <?= h($watch['text']) ?></p>
+<?php if ($watch['detail'] !== ''): ?>
+    <p class="hint"><?= h($watch['detail']) ?></p>
+<?php endif; ?>
+  </div>
+<?php elseif ($watch['level'] !== 'none'): ?>
+  <div class="w3-panel w3-light-gray" style="border-radius:5px" id="stream-zustand">
+    <p><?= h($watch['text']) ?></p>
+<?php if ($watch['detail'] !== ''): ?>
+    <p class="hint"><?= h($watch['detail']) ?></p>
+<?php endif; ?>
+  </div>
+<?php else: ?>
+  <div class="w3-panel w3-light-gray" style="border-radius:5px"><p>Keine Stream-Adresse eingerichtet.</p></div>
+<?php endif; ?>
+<?php if ($stats !== null): ?>
+  <div class="w3-panel w3-light-blue" style="border-radius:5px" id="anrufstatistik">
+    <p>Anrufe in den letzten 24 Stunden: <?= $stats['calls'] ?><?php if ($stats['calls'] > 0):
+         $avg = intdiv($stats['seconds'], $stats['calls']);
+         $shortPct = (int)round(100 * $stats['short'] / $stats['calls']); ?>,
+       durchschnittlich <?= h(sprintf('%d:%02d', intdiv($avg, 60), $avg % 60)) ?> min,
+       unter <?= CALL_SHORT_SECONDS ?> s: <?= $shortPct ?> %<?php endif; ?></p>
+<?php if ($stats['calls'] >= 5 && $stats['short'] * 2 >= $stats['calls']): ?>
+    <p><b>Auff&auml;llig viele sehr kurze Anrufe.</b> Das kann bedeuten, dass Anrufer nichts h&ouml;ren und
+       gleich wieder auflegen. Bitte selbst anrufen und pr&uuml;fen.</p>
+<?php endif; ?>
+    <p class="hint">Gez&auml;hlt werden angenommene Anrufe, ohne Rufnummern. Nach einem Update beginnt die Z&auml;hlung
+       von vorn.</p>
+  </div>
+<?php endif; ?>
+  </div>
+  <!-- Wartemusik end -->
+
   <!-- Streamübersichtkasten begin -->
 <?php if ($ice['icecast_panel']): ?>
   <div class="w3-panel w3-card-4 w3-blue">

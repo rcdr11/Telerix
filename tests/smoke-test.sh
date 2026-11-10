@@ -320,6 +320,9 @@ check "Asterisk-Datenverzeichnisse mit setgid (2750)" '[ "$(in_container "stat -
 check "Vom Webinterface geschriebene Dateien für Asterisk lesbar" '[ -z "$(in_container "find /var/lib/telerix/asterisk /var/lib/telerix/sounds -type f ! -group asterisk")" ]'
 check "pjsip_external.conf vorhanden (640 telerix:asterisk)" '[ "$(in_container "stat -c %a:%U:%G /var/lib/telerix/asterisk/pjsip_external.conf")" = "640:telerix:asterisk" ]'
 check "Transport transport-udp geladen" 'in_container "asterisk -rx \"pjsip show transport transport-udp\"" | grep -q "external_media_address"'
+check "Ohne TELERIX_SIP_ALLOW keine SIP-ACL (pjsip_acl.conf nur Kommentar)" 'in_container "cat /var/lib/telerix/asterisk/pjsip_acl.conf" | grep -q "Keine ACL" && ! in_container "asterisk -rx \"pjsip show acls\" 2>/dev/null" | grep -q "telerix-acl"'
+check "Module für ACL und Anrufstatistik geladen" '[ "$(in_container "asterisk -rx \"module show like res_pjsip_acl\"; asterisk -rx \"module show like func_db\"" | grep -c "Running")" = 2 ]'
+check "Statusverzeichnis der Wartemusik für PHP lesbar" 'in_container "su -s /bin/sh telerix -c \"ls /run/telerix-stream\"" >/dev/null'
 check "admin.json nur für telerix lesbar (600)" '[ "$(in_container "stat -c %a:%U /var/lib/telerix/config/admin.json")" = "600:telerix" ]'
 php_version() { in_container 'php84 -r "echo PHP_VERSION;"'; }
 check "PHP mit Fix für CVE-2026-109618/109619 (>= 8.4.27)" 'printf "%s\n" 8.4.27 "$(php_version)" | sort -V -C'
